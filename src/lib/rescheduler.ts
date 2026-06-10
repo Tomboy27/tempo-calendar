@@ -62,7 +62,7 @@ export function findRescheduleSlot(
   task: Task,
   busySlots: CalendarEvent[],
   _excludeTaskId?: string,
-  config: SchedulerConfig = { defaultStartHour: 9, defaultEndHour: 17, minGapMinutes: 15, includeWeekends: false }
+  config: SchedulerConfig = { defaultStartHour: 9, defaultEndHour: 17, minGapMinutes: 15, includeWeekends: false, defaultHorizonWeeks: 8 }
 ): SchedulingSlot | null {
   // Get available slots considering the busy calendar
   const slots = findSlotsForTask(task, busySlots, config);
@@ -82,7 +82,7 @@ export function findRescheduleSlot(
 export function batchReschedule(
   scheduledTasks: Task[],
   googleEvents: CalendarEvent[],
-  config: SchedulerConfig = { defaultStartHour: 9, defaultEndHour: 17, minGapMinutes: 15, includeWeekends: false }
+  config: SchedulerConfig = { defaultStartHour: 9, defaultEndHour: 17, minGapMinutes: 15, includeWeekends: false, defaultHorizonWeeks: 8 }
 ): RescheduleResult[] {
   const results: RescheduleResult[] = [];
   const priorityOrder: Record<string, number> = { ASAP: 0, HIGH: 1, NORMAL: 2, LOW: 3 };

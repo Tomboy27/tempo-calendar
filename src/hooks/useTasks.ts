@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Task } from '../lib/types';
+import type { Task, SchedulingOutput } from '../lib/types';
 import type { CalendarEvent } from '../lib/google';
 import {
   fetchTasks, fetchUnscheduledTasks,
@@ -156,19 +156,33 @@ export function useTasks(): UseTasksReturn {
     try {
       const unscheduled = await fetchUnscheduledTasks();
       const busySlots = googleEvents.filter((e) => e.source === 'google');
-      const results = scheduleMultipleTasks(unscheduled, busySlots, config);
+      const output = scheduleMultipleTasks(unscheduled, busySlots, config);
       let scheduledCount = 0;
-      for (const { task, slot } of results) {
-        if (!slot) continue;
+
+      // Process scheduled tasks
+      for (const { taskId, slot } of output.scheduled) {
+        const task = unscheduled.find(t => t.id === taskId);
+        if (!task) continue;
         try {
-          const startISO = slot.start.toISOString(); const endISO = slot.end.toISOString();
+          const startISO = slot.start.toISOString();
+          const endISO = slot.end.toISOString();
           let googleEventId = task.google_event_id;
           if (googleEventId) { await updateTaskInGoogle(task, startISO, endISO); }
-          else { const sr = await syncTaskToGoogle(task, startISO, endISO); googleEventId = sr.googleEventId ?? null; if (!sr.success) recordSyncError(`"${task.title}": ${sr.error || 'Google sync failed'}`); }
+          else {
+            const sr = await syncTaskToGoogle(task, startISO, endISO);
+            googleEventId = sr.googleEventId ?? null;
+            if (!sr.success) recordSyncError(`"${task.title}": ${sr.error || 'Google sync failed'}`);
+          }
           if (googleEventId) await updateTaskSchedule(task.id, startISO, endISO, googleEventId);
           scheduledCount++;
-        } catch (err: any) { recordSyncError(`"${task.title}": ${err?.message || 'Schedule save failed'}`); }
+        } catch (err: any) { recordSyncError(`"${task?.title || taskId}": ${err?.message || 'Schedule save failed'}`); }
       }
+
+      // Report dependency errors
+      for (const err of output.dependencyErrors) {
+        recordSyncError(`Dependency error for "${err.taskId}": ${err.message}`);
+      }
+
       const data = await fetchTasks(); if (mountedRef.current) setTasks(data);
       return scheduledCount;
     } catch (err: any) {

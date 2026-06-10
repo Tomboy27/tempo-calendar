@@ -10,18 +10,20 @@ import {
   getDay,
   startOfDay,
 } from 'date-fns';
-import type { Task, SchedulingSlot } from './types';
+import type { Task, SchedulingSlot, TaskDependency, SchedulingProfile, ScheduleWindow, SchedulingOutput } from './types';
 import type { CalendarEvent } from './google';
 
 export interface SchedulerConfig {
   /** Default working hours start (24h) */
-  defaultStartHour: number; // 9
+  defaultStartHour: number;
   /** Default working hours end (24h) */
-  defaultEndHour: number; // 17
+  defaultEndHour: number;
   /** Minimum gap between events in minutes */
-  minGapMinutes: number; // 15
+  minGapMinutes: number;
   /** Consider weekends as available? */
   includeWeekends: boolean;
+  /** Default scheduling horizon in weeks */
+  defaultHorizonWeeks: number;
 }
 
 const DEFAULT_CONFIG: SchedulerConfig = {
@@ -29,22 +31,47 @@ const DEFAULT_CONFIG: SchedulerConfig = {
   defaultEndHour: 17,
   minGapMinutes: 15,
   includeWeekends: false,
+  defaultHorizonWeeks: 8,
 };
 
+// ============================================================
+// Working Hours Resolution
+// ============================================================
+
 /**
- * Get the working hours for a given day, respecting task-level overrides
- * and default config.
+ * Get working hours for a given day, respecting:
+ * 1. Scheduling profile windows (if task has a profile)
+ * 2. Task-level scheduling_hours_override
+ * 3. Task-level preferred_time_windows
+ * 4. Global config defaults
  */
 function getWorkingHours(
   date: Date,
   task: Task,
-  config: SchedulerConfig
+  config: SchedulerConfig,
+  profiles?: SchedulingProfile[]
 ): { startHour: number; endHour: number } {
-  // Check scheduling_hours_override
+  // 1. Check scheduling profile
+  if (task.scheduling_profile_id && profiles) {
+    const profile = profiles.find(p => p.id === task.scheduling_profile_id);
+    if (profile && profile.windows) {
+      const dayOfWeek = getDay(date); // 0=Sun, 6=Sat
+      const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek; // convert to 1=Mon..7=Sun
+      const window = profile.windows.find((w: ScheduleWindow) => w.day === isoDay);
+      if (window) {
+        return {
+          startHour: parseInt(window.start.split(':')[0], 10),
+          endHour: parseInt(window.end.split(':')[0], 10),
+        };
+      }
+    }
+  }
+
+  // 2. Check task-level scheduling_hours_override
   if (task.scheduling_hours_override) {
     try {
       const override = JSON.parse(task.scheduling_hours_override);
-      const dayOfWeek = getDay(date); // 0=Sun, 6=Sat
+      const dayOfWeek = getDay(date);
       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
       const hours = isWeekend ? override.weekend : override.weekday;
       if (hours && hours.length >= 2) {
@@ -56,7 +83,7 @@ function getWorkingHours(
     } catch { /* ignore invalid JSON */ }
   }
 
-  // Check preferred_time_windows
+  // 3. Check preferred_time_windows
   if (task.preferred_time_windows && task.preferred_time_windows.length > 0) {
     try {
       const window = JSON.parse(task.preferred_time_windows[0]);
@@ -67,16 +94,21 @@ function getWorkingHours(
     } catch { /* ignore */ }
   }
 
+  // 4. Global config
   return {
     startHour: config.defaultStartHour,
     endHour: config.defaultEndHour,
   };
 }
 
+// ============================================================
+// Overlap Detection
+// ============================================================
+
 /**
  * Check if a given time range overlaps with any busy events.
  * Uses strict interval overlap: start < eventEnd && end > eventStart.
- * Touching boundaries (start === eventEnd) are NOT considered overlapping.
+ * Back-to-back events (start === eventEnd) are NOT overlapping.
  */
 function isOverlapping(
   start: Date,
@@ -86,39 +118,33 @@ function isOverlapping(
   return busySlots.some((event) => {
     const eventStart = parseISO(event.startTime);
     const eventEnd = parseISO(event.endTime);
-    // Strict overlap: a task ending exactly when another starts is allowed
     return start < eventEnd && end > eventStart;
   });
 }
 
+// ============================================================
+// Blocking Rules
+// ============================================================
+
 /**
- * Check if a given date/time is blocked by task-level blocked times.
+ * Check if a given date/time is blocked by task-level blocking rules.
  */
 function isInBlockedTime(date: Date, task: Task): boolean {
-  const dayOfWeek = getDay(date); // 0=Sun
-  const taskDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek; // convert to 1=Mon..7=Sun
+  const dayOfWeek = getDay(date);
+  const taskDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
 
-  // Check blocked days
-  if (task.blocked_days?.includes(taskDayOfWeek)) {
-    return true;
-  }
+  if (task.blocked_days?.includes(taskDayOfWeek)) return true;
 
-  // Check preferred_days (if set, only allow those days)
   if (task.preferred_days && task.preferred_days.length > 0) {
-    if (!task.preferred_days.includes(taskDayOfWeek)) {
-      return true;
-    }
+    if (!task.preferred_days.includes(taskDayOfWeek)) return true;
   }
 
-  // Check blocked times
   if (task.blocked_times && task.blocked_times.length > 0) {
     const timeStr = format(date, 'HH:mm');
     for (const bt of task.blocked_times) {
       try {
         const block = JSON.parse(bt);
-        if (timeStr >= block.start && timeStr < block.end) {
-          return true;
-        }
+        if (timeStr >= block.start && timeStr < block.end) return true;
       } catch { /* ignore */ }
     }
   }
@@ -130,50 +156,45 @@ function isInBlockedTime(date: Date, task: Task): boolean {
  * Check if the date falls within preferred_time_windows for the task.
  */
 function isInPreferredTimeWindow(date: Date, task: Task): boolean {
-  if (!task.preferred_time_windows || task.preferred_time_windows.length === 0) {
-    return true; // no preference = always allowed
-  }
+  if (!task.preferred_time_windows || task.preferred_time_windows.length === 0) return true;
 
   const timeStr = format(date, 'HH:mm');
   for (const tw of task.preferred_time_windows) {
     try {
       const window = JSON.parse(tw);
-      if (timeStr >= window.start && timeStr < window.end) {
-        return true;
-      }
+      if (timeStr >= window.start && timeStr < window.end) return true;
     } catch { /* ignore */ }
   }
 
   return false;
 }
 
+// ============================================================
+// Slot Finding
+// ============================================================
+
 /**
  * Find available time slots for a given task on a specific date,
- * considering busy events.
+ * considering busy events, buffers, and scheduling hours.
  */
 export function findSlotsForDate(
   date: Date,
   task: Task,
   busySlots: CalendarEvent[],
-  config: SchedulerConfig = DEFAULT_CONFIG
+  config: SchedulerConfig = DEFAULT_CONFIG,
+  profiles?: SchedulingProfile[]
 ): SchedulingSlot[] {
-  // Skip blocked days
-  if (isInBlockedTime(date, task)) {
-    return [];
-  }
+  if (isInBlockedTime(date, task)) return [];
 
-  // Skip weekends if not configured
   if (!config.includeWeekends) {
     const dayOfWeek = getDay(date);
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       const taskDay = dayOfWeek === 0 ? 7 : dayOfWeek;
-      if (!task.preferred_days?.includes(taskDay)) {
-        return [];
-      }
+      if (!task.preferred_days?.includes(taskDay)) return [];
     }
   }
 
-  const { startHour, endHour } = getWorkingHours(date, task, config);
+  const { startHour, endHour } = getWorkingHours(date, task, config, profiles);
   const dayStart = new Date(date);
   dayStart.setHours(startHour, 0, 0, 0);
   const dayEnd = new Date(date);
@@ -182,38 +203,27 @@ export function findSlotsForDate(
   const slots: SchedulingSlot[] = [];
   let cursor = new Date(dayStart);
 
-  // Get busy events for this day only
   const dayBusySlots = busySlots.filter((event) => {
     const eventStart = parseISO(event.startTime);
-    return (
-      format(eventStart, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
-    );
-  }).sort((a, b) => {
-    return parseISO(a.startTime).getTime() - parseISO(b.startTime).getTime();
-  });
+    return format(eventStart, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
+  }).sort((a, b) => parseISO(a.startTime).getTime() - parseISO(b.startTime).getTime());
 
   while (cursor < dayEnd) {
     const slotEnd = addMinutes(cursor, task.duration_minutes);
-
-    // If slot goes past end of day, stop
     if (slotEnd > dayEnd) break;
 
-    // Check if this slot is in a preferred time window
     if (!isInPreferredTimeWindow(cursor, task)) {
       cursor = addMinutes(cursor, config.minGapMinutes);
       continue;
     }
 
-    // Check if it overlaps with any busy event
     if (!isOverlapping(cursor, slotEnd, dayBusySlots)) {
-      // Compute buffered start/end:
-      // buffer_before_minutes adds padding BEFORE the task starts
-      // buffer_after_minutes adds padding AFTER the task ends
       const bufferedStart = subMinutes(cursor, task.buffer_before_minutes);
       const bufferedEnd = addMinutes(slotEnd, task.buffer_after_minutes);
 
-      // Check if buffered slot also doesn't overlap and stays within working hours
-      if (!isOverlapping(bufferedStart, bufferedEnd, dayBusySlots) && bufferedStart >= dayStart) {
+      // Ensure buffer doesn't go outside working hours
+      const bufferInBounds = bufferedStart >= dayStart && bufferedEnd <= addMinutes(dayEnd, 1);
+      if (!isOverlapping(bufferedStart, bufferedEnd, dayBusySlots) && bufferInBounds) {
         slots.push({
           start: new Date(cursor),
           end: new Date(slotEnd),
@@ -229,24 +239,21 @@ export function findSlotsForDate(
 }
 
 /**
- * Find all available slots across multiple days up to the scheduling cutoff.
+ * Find all available slots across multiple days up to the scheduling horizon.
  */
 export function findSlotsForTask(
   task: Task,
   busySlots: CalendarEvent[],
-  config: SchedulerConfig = DEFAULT_CONFIG
+  config: SchedulerConfig = DEFAULT_CONFIG,
+  profiles?: SchedulingProfile[]
 ): SchedulingSlot[] {
   const allSlots: SchedulingSlot[] = [];
-  const maxDays = task.scheduling_cutoff_weeks * 7;
+  const maxDays = Math.min(task.scheduling_cutoff_weeks, config.defaultHorizonWeeks) * 7;
   const startDate = startOfDay(new Date());
 
-  // If task has a deadline, don't schedule past it
   const deadline = task.deadline ? parseISO(task.deadline) : null;
-  const dueDate = task.due_date
-    ? parseISO(task.due_date)
-    : null;
+  const dueDate = task.due_date ? parseISO(task.due_date) : null;
 
-  // Calculate upper bound using integer days to avoid fractional-day issues
   const deadlineDays = deadline
     ? Math.floor(differenceInMinutes(deadline, startDate) / (24 * 60))
     : Infinity;
@@ -254,38 +261,28 @@ export function findSlotsForTask(
     ? Math.floor(differenceInMinutes(dueDate, startDate) / (24 * 60))
     : Infinity;
   const upperDays = Math.min(maxDays, deadlineDays, dueDays);
-
   const upperBound = addDays(startDate, upperDays);
 
   let currentDate = new Date(startDate);
 
   while (currentDate <= upperBound) {
-    const dateSlots = findSlotsForDate(currentDate, task, busySlots, config);
+    const dateSlots = findSlotsForDate(currentDate, task, busySlots, config, profiles);
     allSlots.push(...dateSlots);
     currentDate = addDays(currentDate, 1);
   }
 
-  // Sort by date then time
   allSlots.sort((a, b) => a.start.getTime() - b.start.getTime());
-
   return allSlots;
 }
 
 /**
- * Pick the best slot from a list of slots based on task preferences.
- * - ASAP tasks get the earliest slot
- * - Tasks with deadlines get the earliest slot that fits before the deadline
- * - Other tasks get the earliest slot
+ * Pick the best slot from available slots based on task preferences.
  */
 export function pickBestSlot(slots: SchedulingSlot[], task: Task): SchedulingSlot | null {
   if (slots.length === 0) return null;
 
-  // For ASAP priority, pick the earliest slot
-  if (task.priority === 'ASAP') {
-    return slots[0];
-  }
+  if (task.priority === 'ASAP') return slots[0];
 
-  // For tasks with preferred time windows, try to find the best match
   if (task.preferred_time_windows && task.preferred_time_windows.length > 0) {
     for (const tw of task.preferred_time_windows) {
       try {
@@ -305,35 +302,184 @@ export function pickBestSlot(slots: SchedulingSlot[], task: Task): SchedulingSlo
     }
   }
 
-  // Default: return earliest slot
   return slots[0];
 }
 
+// ============================================================
+// Dependency-Aware Ordering
+// ============================================================
+
 /**
- * Main scheduling function. Finds slots and picks the best one.
+ * Detect dependency cycles using DFS. Returns the cycle path if found.
+ */
+export function detectDependencyCycles(
+  tasks: Task[],
+  dependencies: TaskDependency[]
+): Array<{ taskId: string; cyclePath: string[] }> {
+  const errors: Array<{ taskId: string; cyclePath: string[] }> = [];
+  const taskIds = new Set(tasks.map(t => t.id));
+  const depMap = new Map<string, string[]>();
+
+  for (const dep of dependencies) {
+    if (!taskIds.has(dep.task_id) || !taskIds.has(dep.depends_on_task_id)) continue;
+    const existing = depMap.get(dep.task_id) || [];
+    existing.push(dep.depends_on_task_id);
+    depMap.set(dep.task_id, existing);
+  }
+
+  const visited = new Set<string>();
+  const inStack = new Set<string>();
+
+  function dfs(node: string, path: string[]): boolean {
+    if (inStack.has(node)) {
+      const cycleStart = path.indexOf(node);
+      const cycle = path.slice(cycleStart);
+      cycle.push(node);
+      errors.push({ taskId: node, cyclePath: cycle });
+      return true;
+    }
+    if (visited.has(node)) return false;
+
+    visited.add(node);
+    inStack.add(node);
+    path.push(node);
+
+    for (const neighbor of (depMap.get(node) || [])) {
+      dfs(neighbor, path);
+    }
+
+    path.pop();
+    inStack.delete(node);
+    return false;
+  }
+
+  for (const task of tasks) {
+    if (!visited.has(task.id)) {
+      dfs(task.id, []);
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Sort tasks respecting dependency order (topological sort).
+ * Tasks with no dependencies come first.
+ */
+export function topologicalSort(
+  tasks: Task[],
+  dependencies: TaskDependency[]
+): Task[] {
+  const taskIds = new Set(tasks.map(t => t.id));
+  const depMap = new Map<string, Set<string>>();
+
+  for (const task of tasks) {
+    depMap.set(task.id, new Set());
+  }
+
+  for (const dep of dependencies) {
+    if (taskIds.has(dep.task_id) && taskIds.has(dep.depends_on_task_id)) {
+      depMap.get(dep.task_id)!.add(dep.depends_on_task_id);
+    }
+  }
+
+  const sorted: Task[] = [];
+  const visited = new Set<string>();
+
+  function visit(node: string) {
+    if (visited.has(node)) return;
+    visited.add(node);
+    for (const dep of (depMap.get(node) || [])) {
+      visit(dep);
+    }
+    sorted.push(tasks.find(t => t.id === node)!);
+  }
+
+  for (const task of tasks) {
+    visit(task.id);
+  }
+
+  return sorted;
+}
+
+/**
+ * Get all dependencies that must be completed before a task can start.
+ */
+export function getBlockingDependencies(
+  taskId: string,
+  dependencies: TaskDependency[]
+): string[] {
+  return dependencies
+    .filter(d => d.task_id === taskId)
+    .map(d => d.depends_on_task_id);
+}
+
+// ============================================================
+// Task Filtering
+// ============================================================
+
+/**
+ * Filter tasks that are eligible for auto-scheduling.
+ */
+export function getAutoSchedulableTasks(tasks: Task[]): Task[] {
+  return tasks.filter(t =>
+    t.status === 'active' &&
+    t.auto_schedule === true &&
+    !t.is_busy_block
+  );
+}
+
+/**
+ * Get locked tasks as busy intervals (fixed blocks).
+ */
+export function getLockedTasksAsBusySlots(tasks: Task[]): CalendarEvent[] {
+  return tasks
+    .filter(t => t.is_locked && t.is_scheduled && t.scheduled_start && t.scheduled_end)
+    .map(t => ({
+      id: `locked-${t.id}`,
+      title: t.title,
+      description: t.description || '',
+      source: 'task' as const,
+      calendar: 'locked',
+      startTime: t.scheduled_start!,
+      endTime: t.scheduled_end!,
+      color: t.color,
+    }));
+}
+
+/**
+ * Detect tasks that are missed (scheduled end is in the past and not completed).
+ */
+export function detectMissedTasks(tasks: Task[]): Task[] {
+  const now = new Date();
+  return tasks.filter(t =>
+    t.status === 'active' &&
+    t.is_scheduled &&
+    t.scheduled_end &&
+    isAfter(now, parseISO(t.scheduled_end))
+  );
+}
+
+// ============================================================
+// Main Scheduling Functions
+// ============================================================
+
+/**
+ * Schedule a single task, finding the best available slot.
  */
 export function scheduleTask(
   task: Task,
   busySlots: CalendarEvent[],
-  config: SchedulerConfig = DEFAULT_CONFIG
+  config: SchedulerConfig = DEFAULT_CONFIG,
+  profiles?: SchedulingProfile[]
 ): SchedulingSlot | null {
-  const slots = findSlotsForTask(task, busySlots, config);
-
-  if (slots.length === 0) {
-    if (task.ignore_if_cannot_schedule) {
-      return null;
-    }
-    return null;
-  }
-
-  const bestSlot = pickBestSlot(slots, task);
-
-  return bestSlot;
+  const slots = findSlotsForTask(task, busySlots, config, profiles);
+  if (slots.length === 0) return null;
+  return pickBestSlot(slots, task);
 }
 
 /**
- * Sort tasks by priority: ASAP > HIGH > NORMAL > LOW
- * This is the canonical priority ordering used throughout.
+ * Priority ordering constant.
  */
 export const PRIORITY_ORDER: Record<string, number> = {
   ASAP: 0,
@@ -343,50 +489,151 @@ export const PRIORITY_ORDER: Record<string, number> = {
 };
 
 /**
- * Schedule multiple tasks in priority order.
- * Returns tasks with their scheduled slots.
- * Already-scheduled tasks are treated as busy blocks.
+ * Sort tasks by: dependency order first, then priority, then deadline, then created date.
+ */
+export function sortTasksForScheduling(
+  tasks: Task[],
+  dependencies: TaskDependency[]
+): Task[] {
+  // First get dependency order
+  const depOrdered = topologicalSort(tasks, dependencies);
+
+  // Then sort within same dependency level by priority → deadline → created_at
+  return depOrdered;
+}
+
+/**
+ * Schedule multiple tasks with full dependency awareness.
+ * Returns structured SchedulingOutput.
  */
 export function scheduleMultipleTasks(
   tasks: Task[],
   busySlots: CalendarEvent[],
-  config: SchedulerConfig = DEFAULT_CONFIG
-): Array<{ task: Task; slot: SchedulingSlot | null }> {
-  const sortedTasks = [...tasks].sort((a, b) => {
-    const pa = PRIORITY_ORDER[a.priority] ?? 99;
-    const pb = PRIORITY_ORDER[b.priority] ?? 99;
-    if (pa !== pb) return pa - pb;
+  config: SchedulerConfig = DEFAULT_CONFIG,
+  dependencies: TaskDependency[] = [],
+  profiles?: SchedulingProfile[]
+): SchedulingOutput {
+  const output: SchedulingOutput = {
+    scheduled: [],
+    unscheduled: [],
+    conflicts: [],
+    dependencyErrors: [],
+    missedRecalculated: [],
+    lockedSkipped: [],
+  };
 
-    // If same priority, tasks with deadlines come first
-    if (a.deadline && !b.deadline) return -1;
-    if (!a.deadline && b.deadline) return 1;
+  // 1. Detect dependency cycles
+  const cycles = detectDependencyCycles(tasks, dependencies);
+  if (cycles.length > 0) {
+    output.dependencyErrors = cycles.map(c => ({
+      taskId: c.taskId,
+      message: `Dependency cycle detected`,
+      cyclePath: c.cyclePath,
+    }));
+    // Remove tasks involved in cycles from scheduling
+    const cycleTaskIds = new Set(cycles.map(c => c.taskId));
+    tasks = tasks.filter(t => !cycleTaskIds.has(t.id));
+  }
 
-    return 0;
-  });
+  // 2. Add locked tasks as busy slots
+  const lockedBusy = getLockedTasksAsBusySlots(tasks);
+  const allBusy = [...busySlots, ...lockedBusy];
 
-  const results: Array<{ task: Task; slot: SchedulingSlot | null }> = [];
-  let accumulatedBusy = [...busySlots];
+  // 3. Sort by dependency order, then priority
+  const sortedTasks = sortTasksForScheduling(tasks, dependencies);
 
-  for (const task of sortedTasks) {
-    const slot = scheduleTask(task, accumulatedBusy, config);
-    results.push({ task, slot });
+  // 4. Filter to auto-schedulable tasks
+  const schedulable = getAutoSchedulableTasks(sortedTasks);
 
-    // If task was scheduled, add it as a busy block for subsequent tasks
+  // 5. Schedule each task in order
+  let accumulatedBusy = [...allBusy];
+
+  for (const task of schedulable) {
+    // Skip locked tasks that are already scheduled
+    if (task.is_locked && task.is_scheduled) {
+      output.lockedSkipped.push(task.id);
+      continue;
+    }
+
+    // Check if all dependencies are satisfied (scheduled)
+    const blocking = getBlockingDependencies(task.id, dependencies);
+    const unsatisfiedDeps = blocking.filter(depId => {
+      const depTask = tasks.find(t => t.id === depId);
+      return depTask && !depTask.is_scheduled;
+    });
+
+    if (unsatisfiedDeps.length > 0) {
+      output.unscheduled.push({
+        taskId: task.id,
+        reason: `Blocked by ${unsatisfiedDeps.length} unsatisfied dependency`,
+      });
+      continue;
+    }
+
+    const slot = scheduleTask(task, accumulatedBusy, config, profiles);
+
     if (slot) {
-      const startTime = slot.start.toISOString();
-      const endTime = slot.end.toISOString();
+      output.scheduled.push({ taskId: task.id, slot });
+
+      // Add to accumulated busy for subsequent tasks
       accumulatedBusy.push({
         id: `scheduled-${task.id}`,
         title: task.title,
         description: task.description || '',
         source: 'task',
         calendar: 'scheduled',
-        startTime,
-        endTime,
+        startTime: slot.start.toISOString(),
+        endTime: slot.end.toISOString(),
         color: task.color,
+      });
+    } else {
+      output.unscheduled.push({
+        taskId: task.id,
+        reason: 'No available time slot found',
       });
     }
   }
 
-  return results;
+  return output;
+}
+
+/**
+ * Recalculate schedule for missed, unscheduled, or flexible tasks.
+ * Preserves locked blocks. Never moves external events.
+ */
+export function recalculateSchedule(
+  tasks: Task[],
+  busySlots: CalendarEvent[],
+  config: SchedulerConfig = DEFAULT_CONFIG,
+  dependencies: TaskDependency[] = [],
+  profiles?: SchedulingProfile[]
+): SchedulingOutput {
+  // Find tasks that need recalculation:
+  // - Missed tasks
+  // - Unscheduled active tasks with auto_schedule=true
+  // - Flexible scheduled tasks (not locked) — these can be moved
+  const now = new Date();
+  const needsRecalc = tasks.filter(t =>
+    t.status === 'active' &&
+    t.auto_schedule &&
+    !t.is_busy_block && (
+      // Missed tasks
+      (t.is_scheduled && t.scheduled_end && isAfter(now, parseISO(t.scheduled_end))) ||
+      // Unscheduled tasks
+      (!t.is_scheduled) ||
+      // Flexible scheduled tasks (not locked)
+      (t.is_scheduled && !t.is_locked)
+    )
+  );
+
+  // Clear scheduling for flexible tasks (but not locked ones)
+  for (const task of needsRecalc) {
+    if (task.is_scheduled && !task.is_locked) {
+      task.is_scheduled = false;
+      task.scheduled_start = null;
+      task.scheduled_end = null;
+    }
+  }
+
+  return scheduleMultipleTasks(needsRecalc, busySlots, config, dependencies, profiles);
 }
