@@ -391,6 +391,11 @@ function App() {
             buffer_before_minutes: editingTask.buffer_before_minutes || undefined,
             buffer_after_minutes: editingTask.buffer_after_minutes || undefined,
             notes: editingTask.notes || undefined,
+            deadline: editingTask.deadline || undefined,
+            is_locked: editingTask.is_locked,
+            auto_schedule: editingTask.auto_schedule,
+            scheduling_cutoff_weeks: editingTask.scheduling_cutoff_weeks,
+            preferred_time_windows: editingTask.preferred_time_windows || undefined,
           } : undefined}
           title={editingTask ? 'Edit task' : 'New task'}
         />

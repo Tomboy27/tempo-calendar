@@ -53,6 +53,18 @@ export function TaskDialog({ open, onClose, onSave, initial, title }: TaskDialog
     buffer_before_minutes: initial?.buffer_before_minutes || 0,
     buffer_after_minutes: initial?.buffer_after_minutes || 0,
     notes: initial?.notes || '',
+    deadline: initial?.deadline || '',
+    is_locked: initial?.is_locked || false,
+    auto_schedule: initial?.auto_schedule !== false,
+    scheduling_cutoff_weeks: initial?.scheduling_cutoff_weeks || 8,
+    preferred_time_start: (() => {
+      try { return initial?.preferred_time_windows?.[0] ? JSON.parse(initial.preferred_time_windows[0]).start : ''; }
+      catch { return ''; }
+    })(),
+    preferred_time_end: (() => {
+      try { return initial?.preferred_time_windows?.[0] ? JSON.parse(initial.preferred_time_windows[0]).end : ''; }
+      catch { return ''; }
+    })(),
   });
 
   const [saving, setSaving] = useState(false);
@@ -84,8 +96,15 @@ export function TaskDialog({ open, onClose, onSave, initial, title }: TaskDialog
         can_balance_across_days: form.can_balance_across_days,
         buffer_before_minutes: form.buffer_before_minutes || undefined,
         buffer_after_minutes: form.buffer_after_minutes || undefined,
-        notes: form.notes || undefined,
-      });
+          notes: form.notes || undefined,
+          deadline: form.deadline || undefined,
+          is_locked: form.is_locked,
+          auto_schedule: form.auto_schedule,
+          scheduling_cutoff_weeks: form.scheduling_cutoff_weeks,
+          preferred_time_windows: form.preferred_time_start && form.preferred_time_end
+            ? [JSON.stringify({ start: form.preferred_time_start, end: form.preferred_time_end })]
+            : undefined,
+        });
       onClose();
     } catch (err: any) {
       setSaveError(err?.message || 'Failed to save task');
@@ -259,6 +278,8 @@ export function TaskDialog({ open, onClose, onSave, initial, title }: TaskDialog
                   { key: 'is_habit', label: 'Habit' },
                   { key: 'can_split', label: 'Can Split' },
                   { key: 'is_busy_block', label: 'Busy Block' },
+                  { key: 'is_locked', label: 'Locked (Fixed)' },
+                  { key: 'auto_schedule', label: 'Auto Schedule' },
                   { key: 'ignore_if_cannot_schedule', label: 'Skip If No Slot' },
                   { key: 'can_balance_across_days', label: 'Balance Days' },
                 ].map(({ key, label }) => (
@@ -281,6 +302,24 @@ export function TaskDialog({ open, onClose, onSave, initial, title }: TaskDialog
                 <div>
                   <label className="text-xs text-muted-foreground block mb-1">Buffer After (Min)</label>
                   <input type="number" value={form.buffer_after_minutes} onChange={(e) => setForm((p) => ({ ...p, buffer_after_minutes: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" min={0} step={5} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Deadline</label>
+                <input type="date" value={form.deadline} onChange={(e) => setForm((p) => ({ ...p, deadline: e.target.value }))} className="w-full px-3 py-1.5 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">Scheduling Horizon (Weeks)</label>
+                  <input type="number" value={form.scheduling_cutoff_weeks} onChange={(e) => setForm((p) => ({ ...p, scheduling_cutoff_weeks: Math.max(1, parseInt(e.target.value) || 8) }))} className="w-full px-3 py-1.5 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" min={1} max={52} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">Preferred Time Window</label>
+                  <div className="flex items-center gap-1">
+                    <input type="time" value={form.preferred_time_start} onChange={(e) => setForm((p) => ({ ...p, preferred_time_start: e.target.value }))} className="w-full px-2 py-1.5 text-xs border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" />
+                    <span className="text-xs text-muted-foreground">-</span>
+                    <input type="time" value={form.preferred_time_end} onChange={(e) => setForm((p) => ({ ...p, preferred_time_end: e.target.value }))} className="w-full px-2 py-1.5 text-xs border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" />
+                  </div>
                 </div>
               </div>
               <div>

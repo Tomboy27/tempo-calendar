@@ -146,6 +146,21 @@ function TaskRow({ task, menuOpen, onMenuToggle, onEdit, onDelete, onUnschedule,
             </span>
           )}
           {task.is_habit && <span className="text-xs text-muted-foreground">Habit</span>}
+          {task.is_locked && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700">
+              &#128274; Locked
+            </span>
+          )}
+          {!task.auto_schedule && task.status === 'active' && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+              Manual
+            </span>
+          )}
+          {task.deadline && (
+            <span className="inline-flex items-center gap-1 text-xs text-orange-600">
+              Due {format(parseISO(task.deadline), 'MMM d')}
+            </span>
+          )}
         </div>
       </div>
       <div className="relative shrink-0">
