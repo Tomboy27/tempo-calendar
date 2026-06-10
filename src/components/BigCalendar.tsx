@@ -80,10 +80,21 @@ export function BigCalendar({
     (event: Event) => {
       const calEvent = event as unknown as CalendarEventType;
       const source = calEvent.data?.source;
-      const sourceClass = source === 'task' ? 'event-task' : 'event-google';
-      return {
-        className: sourceClass,
-      };
+      const isLocked = calEvent.data?.is_locked;
+      const isMissed = calEvent.data?.is_missed;
+      const isFlexible = calEvent.data?.is_flexible;
+
+      let className = '';
+      if (source === 'task') {
+        className = 'event-task';
+        if (isLocked) className += ' event-locked';
+        if (isMissed) className += ' event-missed';
+        if (isFlexible) className += ' event-flexible';
+      } else {
+        className = 'event-google';
+      }
+
+      return { className };
     },
     []
   );

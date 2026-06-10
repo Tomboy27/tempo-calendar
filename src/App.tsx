@@ -48,15 +48,31 @@ function App() {
   }, [calendar.events, tasksHook.tasks]);
 
   const bigCalendarEvents = useMemo<CalendarEventType[]>(() => {
-    return allEvents.map((ev) => ({
-      id: ev.id,
-      title: ev.title,
-      start: new Date(ev.startTime),
-      end: new Date(ev.endTime),
-      variant: ev.source === 'task' ? 'secondary' as const : 'primary' as const,
-      data: { description: ev.description, source: ev.source, color: ev.color },
-    }));
-  }, [allEvents]);
+    const now = new Date();
+    return allEvents.map((ev) => {
+      // Find the original task for state metadata
+      const originalTask = ev.source === 'task'
+        ? tasksHook.tasks.find(t => `task-${t.id}` === ev.id)
+        : null;
+
+      return {
+        id: ev.id,
+        title: ev.title,
+        start: new Date(ev.startTime),
+        end: new Date(ev.endTime),
+        variant: ev.source === 'task' ? 'secondary' as const : 'primary' as const,
+        data: {
+          description: ev.description,
+          source: ev.source,
+          color: ev.color,
+          is_locked: originalTask?.is_locked ?? false,
+          is_missed: originalTask?.status === 'missed' ||
+            (originalTask?.is_scheduled && originalTask?.scheduled_end && new Date(originalTask.scheduled_end) < now),
+          is_flexible: originalTask?.is_scheduled && !originalTask?.is_locked,
+        },
+      };
+    });
+  }, [allEvents, tasksHook.tasks]);
 
   const handleSaveTask = async (input: TaskInput) => {
     if (editingTask) {
