@@ -10,8 +10,11 @@ import { TaskDialog } from './components/TaskDialog';
 import { AuthDialog } from './components/AuthDialog';
 import { SettingsPanel } from './components/SettingsPanel';
 import { OnboardingTour } from './components/OnboardingTour';
+import { CommandPalette } from './components/CommandPalette';
 import { Button } from './components/ui/button';
 import { AlertCircle, Link2, RefreshCw, LogIn, Zap, Settings2 } from 'lucide-react';
+import { Toaster, toast } from 'sonner';
+import { format } from 'date-fns';
 import { detectConflicts } from './lib/rescheduler';
 import { isSupabaseReady } from './lib/supabase';
 import type { Task } from './lib/types';
@@ -71,6 +74,7 @@ function App() {
   const calendar = useGoogleCalendar();
   const tasksHook = useTasks();
   const { theme, toggleTheme, setTheme, useSystemTheme } = useTheme();
+  // (useSystemTheme is passed to SettingsPanel below)
   const [workingHours, setWorkingHours] = useWorkingHours();
 
   const [showTaskDialog, setShowTaskDialog] = useState(false);
@@ -79,6 +83,8 @@ function App() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [activeView, setActiveView] = useState<'calendar' | 'tasks'>('calendar');
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [tempoView, setTempoView] = useState<'day' | 'week' | 'month'>('week');
   const didAuthTransitionRef = useRef(auth.isAuthenticated);
 
   const { tasks: allTasks, refresh } = tasksHook;
@@ -155,8 +161,18 @@ function App() {
     }
   };
 
-  const handleQuickAdd = async (title: string) => {
-    await tasksHook.create({ title, duration_minutes: 30, priority: 'NORMAL' });
+  const handleQuickAdd = async (input: string | { title: string; date?: string; time?: string }) => {
+    if (typeof input === 'string') {
+      await tasksHook.create({ title: input, duration_minutes: 30, priority: 'NORMAL' });
+      return;
+    }
+    await tasksHook.create({
+      title: input.title,
+      duration_minutes: 30,
+      priority: 'NORMAL',
+      ...(input.date ? { due_date: input.date } : {}),
+      ...(input.time ? { due_time: input.time } : {}),
+    });
   };
 
   const handleEditTask = (task: Task) => {
@@ -183,6 +199,18 @@ function App() {
     didAuthTransitionRef.current = auth.isAuthenticated;
   }, [auth.isAuthenticated, refresh]);
 
+  // Cmd/Ctrl+K opens command palette
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const handleReschedule = async () => {
     setRescheduleLoading(true);
     try {
@@ -195,6 +223,24 @@ function App() {
   const handleSelectSlot = () => {
     setEditingTask(null);
     setShowTaskDialog(true);
+  };
+
+  const handleEventDrop = async (eventId: string, newStart: Date, newEnd: Date) => {
+    if (!eventId.startsWith('task-')) {
+      toast.error('Google events are read-only here');
+      return;
+    }
+    const taskId = eventId.replace('task-', '');
+    try {
+      await tasksHook.update(taskId, {
+        is_scheduled: true,
+        scheduled_start: newStart.toISOString(),
+        scheduled_end: newEnd.toISOString(),
+      });
+      toast.success('Moved', { description: `Rescheduled to ${format(newStart, 'EEE h:mm a')}` });
+    } catch (err) {
+      toast.error('Could not reschedule', { description: err instanceof Error ? err.message : 'Unknown error' });
+    }
   };
 
   const handleSelectEvent = (event: CalendarEventType) => {
@@ -481,9 +527,10 @@ function App() {
         >
           <TempoCalendar
             events={tempoEvents}
-            defaultView="week"
+            defaultView={tempoView}
             onSelectEvent={handleSelectEvent}
             onSelectSlot={handleSelectSlot}
+            onEventDrop={handleEventDrop}
             startHour={parseInt(workingHours.start.split(':')[0], 10)}
             endHour={parseInt(workingHours.end.split(':')[0], 10) + 2}
             className="min-h-0"
@@ -580,6 +627,30 @@ function App() {
           schedulingProfiles={tasksHook.schedulingProfiles}
         />
       )}
+
+      <CommandPalette
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        onQuickAdd={handleQuickAdd}
+        onNavigate={setTempoView}
+        onOpenSettings={() => setShowSettings(true)}
+        onToggleTheme={toggleTheme}
+        onScheduleAll={handleScheduleAll}
+        currentView={tempoView}
+        theme={theme}
+      />
+
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          classNames: {
+            toast: '!rounded-xl !border !border-border !bg-card !text-foreground !shadow-lg !text-sm',
+            description: '!text-muted-foreground !text-xs',
+          },
+        }}
+        richColors
+        closeButton
+      />
 
       <div className="fixed bottom-1.5 right-3 text-[10px] text-muted-foreground/30 select-none pointer-events-none z-50 font-mono">
         {TEMPO_VERSION}

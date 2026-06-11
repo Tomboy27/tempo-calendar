@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { format, startOfWeek, endOfWeek, addDays, addWeeks, addMonths, subWeeks, subMonths, subDays, startOfDay, endOfDay, isSameDay, isSameMonth, isToday, differenceInMinutes, setHours, setMinutes, setSeconds, setMilliseconds, addMinutes } from 'date-fns';
+import { format, startOfWeek, endOfWeek, addDays, addWeeks, addMonths, subWeeks, subMonths, subDays, startOfDay, endOfDay, isSameDay, isSameMonth, isToday, differenceInMinutes, setHours, setMinutes, setSeconds, setMilliseconds } from 'date-fns';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
+import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { DraggableEvent } from './CalendarEvent';
 import { cn } from '../lib/utils';
 
@@ -260,45 +260,26 @@ function DayView({ date, events, startHour, endHour, onSelectEvent, onSelectSlot
 
             {/* Events */}
             {positioned.map((ev) => {
-              const width = positioned.length > 0 && ev.totalColumns > 0
+              const width = ev.totalColumns > 0
                 ? `calc((100% - 8px) / ${ev.totalColumns})`
                 : 'calc(100% - 8px)';
               const left = ev.totalColumns > 0
                 ? `calc(4px + (100% - 8px) * ${ev.column} / ${ev.totalColumns})`
                 : '4px';
               return (
-                <button
+                <DraggableEvent
                   key={ev.id}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelectEvent?.(ev);
-                  }}
-                  className={cn(
-                    'absolute z-10 text-left px-2 py-1 rounded-md overflow-hidden transition-all duration-150',
-                    'hover:scale-[1.01] hover:z-30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    'border-l-2 text-[11px] leading-tight',
-                    ev.variant === 'primary' && 'bg-primary/12 border-primary text-foreground',
-                    ev.variant === 'secondary' && 'bg-event-task/40 border-event-task-border text-foreground',
-                    ev.variant === 'warning' && 'bg-warning/15 border-warning text-foreground',
-                    ev.variant === 'destructive' && 'bg-destructive/15 border-destructive text-foreground',
-                    ev.variant === 'success' && 'bg-success/15 border-success text-foreground',
-                    ev.variant === 'muted' && 'bg-muted border-muted-foreground/30 text-foreground',
-                    (!ev.variant || ev.variant === 'primary') && 'bg-primary/12 border-primary text-foreground',
-                  )}
-                  style={{
+                  event={ev}
+                  onClick={(e) => onSelectEvent?.(e)}
+                  draggable={ev.data?.source === 'task' && !ev.data?.is_locked}
+                  isLocked={ev.data?.is_locked}
+                  positionStyle={{
                     top: ev.top,
                     height: Math.max(24, ev.height - 2),
                     left,
                     width,
                   }}
-                >
-                  <div className="font-semibold truncate text-[12px]">{ev.title}</div>
-                  {ev.height > 40 && (
-                    <div className="text-muted-foreground text-[10px] mt-0.5 tabular-nums">
-                      {format(ev.start, 'h:mm a')} - {format(ev.end, 'h:mm a')}
-                    </div>
-                  )}
-                </button>
+                />
               );
             })}
           </div>
@@ -475,38 +456,20 @@ function WeekView({ date, events, startHour, endHour, onSelectEvent, onSelectSlo
                     ? `calc(3px + (100% - 6px) * ${ev.column} / ${ev.totalColumns})`
                     : '3px';
                   return (
-                    <button
+                    <DraggableEvent
                       key={ev.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectEvent?.(ev);
-                      }}
-                      className={cn(
-                        'absolute z-10 text-left px-1.5 py-1 rounded-md overflow-hidden transition-all duration-150',
-                        'hover:scale-[1.015] hover:z-30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                        'border-l-2 text-[10px] leading-tight',
-                        ev.variant === 'primary' && 'bg-primary/15 border-primary text-foreground',
-                        ev.variant === 'secondary' && 'bg-event-task/40 border-event-task-border text-foreground',
-                        ev.variant === 'warning' && 'bg-warning/15 border-warning text-foreground',
-                        ev.variant === 'destructive' && 'bg-destructive/15 border-destructive text-foreground',
-                        ev.variant === 'success' && 'bg-success/15 border-success text-foreground',
-                        ev.variant === 'muted' && 'bg-muted border-muted-foreground/30 text-foreground',
-                        (!ev.variant || ev.variant === 'primary') && 'bg-primary/15 border-primary text-foreground',
-                      )}
-                      style={{
+                      event={ev}
+                      onClick={(e) => onSelectEvent?.(e)}
+                      draggable={ev.data?.source === 'task' && !ev.data?.is_locked}
+                      isLocked={ev.data?.is_locked}
+                      small
+                      positionStyle={{
                         top: ev.top,
                         height: Math.max(22, ev.height - 2),
                         left,
                         width,
                       }}
-                    >
-                      <div className="font-semibold truncate text-[10px]">{ev.title}</div>
-                      {ev.height > 36 && (
-                        <div className="text-muted-foreground text-[9px] mt-0.5 tabular-nums truncate">
-                          {format(ev.start, 'h:mma')} {format(ev.end, 'h:mma')}
-                        </div>
-                      )}
-                    </button>
+                    />
                   );
                 })}
               </div>
@@ -679,6 +642,24 @@ export function TempoCalendar({
     setView('day');
   }, []);
 
+  // Drag-and-drop: 5px activation distance to avoid hijacking clicks
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    if (!onEventDrop) return;
+    const id = String(event.active.id);
+    const deltaY = event.delta.y;
+    // 56px = 60min, so 1px ≈ 1.07min; round to 15-min slots
+    const minutes = Math.round((deltaY / 56) * 60 / 15) * 15;
+    if (minutes === 0) return;
+    const ev = events.find((e) => e.id === id);
+    if (!ev) return;
+    const duration = ev.end.getTime() - ev.start.getTime();
+    const newStart = new Date(ev.start.getTime() + minutes * 60_000);
+    const newEnd = new Date(newStart.getTime() + duration);
+    onEventDrop(id, newStart, newEnd);
+  }, [events, onEventDrop]);
+
   const title = useMemo(() => {
     if (view === 'day') return format(date, 'EEEE, MMMM d');
     if (view === 'week') {
@@ -750,7 +731,8 @@ export function TempoCalendar({
       </div>
 
       {/* View */}
-      <div className="flex-1 min-h-0 animate-fade-in">
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <div className="flex-1 min-h-0 animate-fade-in">
         {view === 'day' && (
           <DayView
             date={date}
@@ -781,7 +763,8 @@ export function TempoCalendar({
             onSelectDay={handleMonthDayClick}
           />
         )}
-      </div>
+        </div>
+      </DndContext>
     </div>
   );
 }

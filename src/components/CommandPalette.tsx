@@ -1,9 +1,9 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Command } from 'cmdk';
-import { Calendar, Plus, Settings, Sun, Moon, Monitor, ChevronRight, Inbox, Sparkles, Zap, Check } from 'lucide-react';
+import { Calendar, Plus, Settings, Sun, Moon, Inbox, Sparkles, Zap, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import * as chrono from 'chrono-node';
-import { format, addDays, isToday, isTomorrow } from 'date-fns';
+import { format, isToday, isTomorrow } from 'date-fns';
 
 interface CommandPaletteProps {
   open: boolean;
@@ -68,29 +68,22 @@ export function CommandPalette({
   theme,
 }: CommandPaletteProps) {
   const [value, setValue] = useState('');
-  const [parsedPreview, setParsedPreview] = useState<{ date?: string; time?: string; title: string } | null>(null);
 
-  // Parse preview as user types
-  useEffect(() => {
-    if (!value.trim()) {
-      setParsedPreview(null);
-      return;
-    }
+  // Derived: parse preview synchronously from value (avoids set-state-in-effect)
+  const parsedPreview = useMemo(() => {
+    if (!value.trim()) return null;
     const parsed = parseNaturalDate(value);
-    if (parsed.date || parsed.time) {
-      setParsedPreview(parsed);
-    } else {
-      setParsedPreview(null);
-    }
+    return parsed.date || parsed.time ? parsed : null;
   }, [value]);
 
-  // Reset on close
-  useEffect(() => {
-    if (!open) {
+  // Reset on close via ref-during-render (canonical external-prop-to-state pattern)
+  const prevOpenRef = useRef(open);
+  if (open !== prevOpenRef.current) {
+    prevOpenRef.current = open;
+    if (!open && value !== '') {
       setValue('');
-      setParsedPreview(null);
     }
-  }, [open]);
+  }
 
   const handleSubmit = async () => {
     const trimmed = value.trim();
