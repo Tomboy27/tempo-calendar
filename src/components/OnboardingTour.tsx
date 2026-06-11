@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, X, Calendar, Zap, Inbox, Sparkles, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -65,6 +65,8 @@ export function OnboardingTour({ forceOpen, onComplete }: OnboardingTourProps) {
       setOpen(true);
       setStepIndex(0);
     }
+    // This is the canonical "sync external prop -> state" pattern; the setState is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [forceOpen]);
 
   const finish = useCallback(() => {
