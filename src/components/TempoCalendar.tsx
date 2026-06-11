@@ -149,7 +149,7 @@ interface DayViewProps {
   onEventDrop?: (eventId: string, newStart: Date, newEnd: Date) => void;
 }
 
-function DayView({ date, events, startHour, endHour, onSelectEvent, onSelectSlot, onEventDrop }: DayViewProps) {
+function DayView({ date, events, startHour, endHour, onSelectEvent, onSelectSlot }: DayViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [, setTick] = useState(0);
   const dayEvents = useMemo(() => getEventsForDay(events, date), [events, date]);
@@ -299,7 +299,7 @@ interface WeekViewProps {
   onEventDrop?: (eventId: string, newStart: Date, newEnd: Date) => void;
 }
 
-function WeekView({ date, events, startHour, endHour, onSelectEvent, onSelectSlot, onEventDrop }: WeekViewProps) {
+function WeekView({ date, events, startHour, endHour, onSelectEvent, onSelectSlot }: WeekViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [, setTick] = useState(0);
   const weekStart = useMemo(() => startOfWeek(date, { weekStartsOn: 1 }), [date]);
@@ -650,7 +650,7 @@ export function TempoCalendar({
     const id = String(event.active.id);
     const deltaY = event.delta.y;
     // 56px = 60min, so 1px ≈ 1.07min; round to 15-min slots
-    const minutes = Math.round((deltaY / 56) * 60 / 15) * 15;
+    const minutes = Math.round((deltaY / HOUR_HEIGHT) * 60 / 15) * 15;
     if (minutes === 0) return;
     const ev = events.find((e) => e.id === id);
     if (!ev) return;
@@ -741,7 +741,6 @@ export function TempoCalendar({
             endHour={endHour}
             onSelectEvent={onSelectEvent}
             onSelectSlot={onSelectSlot}
-            onEventDrop={onEventDrop}
           />
         )}
         {view === 'week' && (
@@ -752,7 +751,6 @@ export function TempoCalendar({
             endHour={endHour}
             onSelectEvent={onSelectEvent}
             onSelectSlot={onSelectSlot}
-            onEventDrop={onEventDrop}
           />
         )}
         {view === 'month' && (
