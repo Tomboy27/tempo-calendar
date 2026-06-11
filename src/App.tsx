@@ -38,6 +38,11 @@ function useTheme() {
     theme,
     toggleTheme: () => setTheme((t) => (t === 'dark' ? 'light' : 'dark')),
     setTheme: (t: 'light' | 'dark') => setTheme(t),
+    useSystemTheme: () => {
+      try { localStorage.removeItem('tempo-theme'); } catch { /* ignore */ }
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setTheme(prefersDark ? 'dark' : 'light');
+    },
   };
 }
 
@@ -65,7 +70,7 @@ function App() {
   const auth = useAuth();
   const calendar = useGoogleCalendar();
   const tasksHook = useTasks();
-  const { theme, toggleTheme, setTheme } = useTheme();
+  const { theme, toggleTheme, setTheme, useSystemTheme } = useTheme();
   const [workingHours, setWorkingHours] = useWorkingHours();
 
   const [showTaskDialog, setShowTaskDialog] = useState(false);
@@ -528,6 +533,7 @@ function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onSetTheme={setTheme}
+        onUseSystemTheme={useSystemTheme}
         user={auth.user}
         isGoogleConnected={calendar.isAuthenticated}
         onDisconnectGoogle={calendar.disconnect}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronLeft, ChevronRight, X, Calendar, Zap, Inbox, Sparkles, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -184,15 +184,20 @@ function Spotlight({ target }: { target: string }) {
       });
     };
     update();
-    const t1 = setTimeout(update, 50);
-    const t2 = setTimeout(update, 200);
+
+    // Use ResizeObserver + scroll listener instead of a 400ms setInterval.
+    const el = document.querySelector(target);
+    let observer: ResizeObserver | null = null;
+    if (el) {
+      observer = new ResizeObserver(update);
+      observer.observe(el);
+    }
     window.addEventListener('resize', update);
-    const interval = setInterval(update, 400);
+    window.addEventListener('scroll', update, true);
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearInterval(interval);
+      observer?.disconnect();
       window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
     };
   }, [target]);
 

@@ -10,6 +10,7 @@ interface SettingsPanelProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onSetTheme: (theme: 'light' | 'dark') => void;
+  onUseSystemTheme: () => void;
   user: SupabaseUser | null;
   isGoogleConnected: boolean;
   onDisconnectGoogle: () => void;
@@ -26,6 +27,7 @@ export function SettingsPanel({
   theme,
   onToggleTheme,
   onSetTheme,
+  onUseSystemTheme,
   user,
   isGoogleConnected,
   onDisconnectGoogle,
@@ -123,8 +125,7 @@ export function SettingsPanel({
                           key={value}
                           onClick={() => {
                             if (isSystem) {
-                              localStorage.removeItem('tempo-theme');
-                              onToggleTheme();
+                              onUseSystemTheme();
                             } else {
                               onSetTheme(value as 'light' | 'dark');
                             }
