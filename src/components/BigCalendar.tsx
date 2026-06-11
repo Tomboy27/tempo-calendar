@@ -37,24 +37,24 @@ export function BigCalendar({
   onSelectEvent,
   onSelectSlot,
   className = '',
-  height = 700,
+  height = '100%',
 }: BigCalendarProps) {
   const { formats, views } = useMemo(
     () => ({
       formats: {
         dateFormat: 'd',
-        dayFormat: 'ddd d',
-        weekdayFormat: 'ddd',
+        dayFormat: 'EEE d',
+        weekdayFormat: 'EEE',
         monthHeaderFormat: 'MMMM yyyy',
-        dayHeaderFormat: 'dddd, MMMM d, yyyy',
+        dayHeaderFormat: 'EEEE, MMM d',
         dayRangeHeaderFormat: ({ start, end }: { start: Date; end: Date }) =>
-          `${format(start, 'MMM d')} - ${format(end, 'MMM d, yyyy')}`,
-        agendaDateFormat: 'ddd MMM d',
+          `${format(start, 'MMM d')} – ${format(end, 'MMM d, yyyy')}`,
+        agendaDateFormat: 'MMM d',
         agendaTimeFormat: 'h:mm a',
         agendaTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
-          `${format(start, 'h:mm a')} - ${format(end, 'h:mm a')}`,
+          `${format(start, 'h:mm a')} – ${format(end, 'h:mm a')}`,
         eventTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
-          `${format(start, 'h:mm a')} - ${format(end, 'h:mm a')}`,
+          `${format(start, 'h:mm a')} – ${format(end, 'h:mm a')}`,
         timeGutterFormat: 'h a',
       },
       views: [Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA],

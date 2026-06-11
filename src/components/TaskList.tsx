@@ -1,6 +1,5 @@
-import { useState } from 'react';
-import { Plus, Clock, Calendar, Zap, MoreHorizontal, Trash2, ExternalLink, XCircle } from 'lucide-react';
-import { Card, CardHeader, CardContent } from './ui/card';
+import { useState, useRef, useEffect } from 'react';
+import { Plus, Clock, Calendar, MoreHorizontal, Trash2, ExternalLink, XCircle, AlertTriangle } from 'lucide-react';
 import { Button } from './ui/button';
 import type { Task } from '../lib/types';
 import { format, parseISO } from 'date-fns';
@@ -15,173 +14,208 @@ interface TaskListProps {
   onUnschedule: (id: string) => Promise<void>;
 }
 
-const PRIORITY_STYLES: Record<string, string> = {
-  ASAP: 'bg-destructive/10 text-destructive',
-  HIGH: 'bg-orange-100 text-orange-700',
-  NORMAL: 'bg-secondary text-secondary-foreground',
-  LOW: 'bg-muted text-muted-foreground',
+const PRIORITY_DOTS: Record<string, string> = {
+  ASAP: 'bg-destructive',
+  HIGH: 'bg-warning',
+  NORMAL: 'bg-muted-foreground/40',
+  LOW: 'bg-muted-foreground/20',
 };
 
 export function TaskList({
   tasks, isLoading, onAddTask, onEditTask, onDeleteTask, onScheduleAll, onUnschedule,
 }: TaskListProps) {
-  const [scheduling, setScheduling] = useState(false);
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
-
   const unscheduled = tasks.filter((t) => !t.is_scheduled);
   const scheduled = tasks.filter((t) => t.is_scheduled);
-
-  const handleScheduleAll = async () => {
-    setScheduling(true);
-    await onScheduleAll();
-    setScheduling(false);
-  };
+  const overdueCount = tasks.filter(t =>
+    t.is_scheduled && t.scheduled_end && new Date(t.scheduled_end) < new Date() && t.status === 'active'
+  ).length;
 
   return (
-    <Card className="overflow-hidden hover:shadow-xl hover:border-primary transition-all duration-300">
-      <CardHeader className="flex flex-row items-center justify-between px-6 py-5">
-        <div className="flex items-center gap-3">
-          <h3 className="text-foreground">Tasks</h3>
-          <span className="text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{unscheduled.length}</span>
-        </div>
+    <div className="flex flex-col h-full">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div className="flex items-center gap-2">
+          <h2 className="text-xs font-semibold text-foreground">Tasks</h2>
           {unscheduled.length > 0 && (
-            <Button
-              size="sm"
-              onClick={handleScheduleAll}
-              disabled={scheduling}
-            >
-              {scheduling ? (
-                <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Scheduling...</>
-              ) : (
-                <><Zap className="w-3.5 h-3.5" /> Schedule All</>
-              )}
+            <span className="text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+              {unscheduled.length}
+            </span>
+          )}
+          {overdueCount > 0 && (
+            <span className="text-[10px] font-medium bg-overdue/10 text-overdue px-1.5 py-0.5 rounded flex items-center gap-0.5">
+              <AlertTriangle className="w-2.5 h-2.5" />
+              {overdueCount}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {unscheduled.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={onScheduleAll} className="h-6 px-2 text-[11px]">
+              Schedule all
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onAddTask}
-          >
-            <Plus className="w-3.5 h-3.5" /> New
+          <Button variant="ghost" size="icon" onClick={onAddTask} className="h-6 w-6" title="Add task">
+            <Plus className="w-3.5 h-3.5" />
           </Button>
         </div>
-      </CardHeader>
+      </div>
 
-      <CardContent className="p-0 pb-0">
-      <div className="divide-y divide-border">
-        {unscheduled.length === 0 && scheduled.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground px-6">
-            <p className="font-medium">No Tasks</p>
-            <button onClick={onAddTask} className="mt-3 text-primary hover:text-primary/80 underline underline-offset-2">
-              Add Your First Task
-            </button>
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        {tasks.length === 0 && !isLoading && (
+          <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+            <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center mb-3">
+              <Calendar className="w-5 h-5 text-muted-foreground/60" />
+            </div>
+            <p className="text-xs font-medium text-foreground mb-1">No tasks yet</p>
+            <p className="text-[11px] text-muted-foreground mb-3">
+              Create a task to get started with auto-scheduling.
+            </p>
+            <Button size="sm" onClick={onAddTask} className="h-7 gap-1.5">
+              <Plus className="w-3 h-3" />
+              New task
+            </Button>
           </div>
         )}
 
-        {unscheduled.map((task) => (
-          <TaskRow key={task.id} task={task} menuOpen={menuOpen} onMenuToggle={setMenuOpen} onEdit={onEditTask} onDelete={onDeleteTask} onUnschedule={onUnschedule} />
-        ))}
-      </div>
-
-        {scheduled.length > 0 && (
-          <>
-            <div className="px-6 py-3 bg-muted border-t border-border border-b border-border">
-              <span className="text-sm font-medium text-muted-foreground">Scheduled ({scheduled.length})</span>
+        {unscheduled.length > 0 && (
+          <div>
+            <div className="px-4 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider bg-muted/50">
+              Unscheduled
             </div>
-          <div className="divide-y divide-border">
-            {scheduled.map((task) => (
-              <TaskRow key={task.id} task={task} menuOpen={menuOpen} onMenuToggle={setMenuOpen} onEdit={onEditTask} onDelete={onDeleteTask} onUnschedule={onUnschedule} isScheduled />
+            {unscheduled.map((task) => (
+              <TaskRow key={task.id} task={task} onEdit={onEditTask} onDelete={onDeleteTask} onUnschedule={onUnschedule} />
             ))}
           </div>
-        </>
-      )}
+        )}
 
-      {isLoading && (
-        <div className="flex items-center justify-center py-6 text-muted-foreground">
-          <div className="w-4 h-4 border-2 border-border border-t-primary rounded-full animate-spin mr-2" />
-          Loading
-        </div>
-      )}
-      </CardContent>
-    </Card>
+        {scheduled.length > 0 && (
+          <div>
+            <div className="px-4 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider bg-muted/50">
+              Scheduled
+            </div>
+            {scheduled.map((task) => (
+              <TaskRow key={task.id} task={task} onEdit={onEditTask} onDelete={onDeleteTask} onUnschedule={onUnschedule} isScheduled />
+            ))}
+          </div>
+        )}
+
+        {isLoading && (
+          <div className="flex items-center justify-center py-8 text-muted-foreground">
+            <div className="w-3.5 h-3.5 border-2 border-border border-t-primary rounded-full animate-spin" />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
 interface TaskRowProps {
   task: Task;
-  menuOpen: string | null;
-  onMenuToggle: (id: string | null) => void;
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
   onUnschedule: (id: string) => Promise<void>;
   isScheduled?: boolean;
 }
 
-function TaskRow({ task, menuOpen, onMenuToggle, onEdit, onDelete, onUnschedule, isScheduled }: TaskRowProps) {
+function TaskRow({ task, onEdit, onDelete, onUnschedule, isScheduled }: TaskRowProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const [unscheduling, setUnscheduling] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as HTMLElement)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [menuOpen]);
+
+  const isOverdue = task.is_scheduled && task.scheduled_end && new Date(task.scheduled_end) < new Date() && task.status === 'active';
 
   return (
-    <div className="flex items-start gap-4 px-6 py-3 hover:bg-accent transition-colors group">
-      <div className="w-2 h-2 rounded-full mt-2 shrink-0" style={{ backgroundColor: task.color || '#D97706' }} />
+    <div
+      className="flex items-center gap-3 px-4 py-2 hover:bg-accent/50 transition-colors group cursor-pointer border-b border-border/50"
+      onClick={() => onEdit(task)}
+    >
+      {/* Priority indicator */}
+      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${PRIORITY_DOTS[task.priority] || 'bg-muted-foreground/20'}`} />
+
+      {/* Content */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-foreground truncate">{task.title}</span>
-          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${PRIORITY_STYLES[task.priority] || 'bg-muted text-muted-foreground'}`}>
-            {task.priority}
+        <div className="flex items-center gap-1.5">
+          <span className={`text-xs font-medium truncate ${isOverdue ? 'text-overdue' : 'text-foreground'}`}>
+            {task.title}
           </span>
+          {task.is_locked && (
+            <span className="text-[9px] font-medium text-success bg-success/10 px-1 py-px rounded shrink-0">locked</span>
+          )}
+          {task.is_habit && (
+            <span className="text-[9px] font-medium text-muted-foreground bg-muted px-1 py-px rounded shrink-0">habit</span>
+          )}
         </div>
-        <div className="flex items-center gap-3 mt-1">
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="w-3 h-3" />{task.duration_minutes}m
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+            <Clock className="w-2.5 h-2.5" />
+            {task.duration_minutes}m
           </span>
           {task.due_date && (
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-              <Calendar className="w-3 h-3" />{format(parseISO(task.due_date), 'MMM d')}
+            <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+              {format(parseISO(task.due_date), 'MMM d')}
             </span>
           )}
           {isScheduled && task.scheduled_start && (
-            <span className="inline-flex items-center gap-1 text-xs text-green-600">
-              <Calendar className="w-3 h-3" />{format(parseISO(task.scheduled_start), 'MMM d, h:mm a')}
-            </span>
-          )}
-          {task.is_habit && <span className="text-xs text-muted-foreground">Habit</span>}
-          {task.is_locked && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700">
-              &#128274; Locked
-            </span>
-          )}
-          {!task.auto_schedule && task.status === 'active' && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
-              Manual
-            </span>
-          )}
-          {task.deadline && (
-            <span className="inline-flex items-center gap-1 text-xs text-orange-600">
-              Due {format(parseISO(task.deadline), 'MMM d')}
+            <span className="text-[10px] text-success flex items-center gap-0.5">
+              {format(parseISO(task.scheduled_start), 'MMM d, h:mm a')}
             </span>
           )}
         </div>
       </div>
-      <div className="relative shrink-0">
+
+      {/* Actions */}
+      <div className="relative shrink-0" ref={menuRef}>
         <button
-          onClick={() => onMenuToggle(menuOpen === task.id ? null : task.id)}
+          onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
           className="p-1 rounded hover:bg-accent text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+          aria-label="More actions"
         >
-          <MoreHorizontal className="w-4 h-4" />
+          <MoreHorizontal className="w-3.5 h-3.5" />
         </button>
-        {menuOpen === task.id && (
-          <div className="absolute right-0 top-full mt-1 w-36 bg-popover rounded-md shadow-lg border border-border z-30 overflow-hidden">
-            <button onClick={() => { onEdit(task); onMenuToggle(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors">
-              <ExternalLink className="w-3.5 h-3.5" /> Edit
+        {menuOpen && (
+          <div className="absolute right-0 top-full mt-1 w-36 bg-popover border border-border rounded-md shadow-md z-30 py-0.5 animate-slide-down">
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit(task); setMenuOpen(false); }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-accent transition-colors"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Edit
             </button>
             {isScheduled && (
-              <button onClick={async () => { setUnscheduling(true); await onUnschedule(task.id); setUnscheduling(false); onMenuToggle(null); }} disabled={unscheduling} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-orange-600 hover:bg-orange-50 transition-colors disabled:opacity-50">
-                <XCircle className="w-3.5 h-3.5" /> Unschedule
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setUnscheduling(true);
+                  await onUnschedule(task.id);
+                  setUnscheduling(false);
+                  setMenuOpen(false);
+                }}
+                disabled={unscheduling}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                <XCircle className="w-3 h-3" />
+                Unschedule
               </button>
             )}
-            <button onClick={() => { onDelete(task.id); onMenuToggle(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
-              <Trash2 className="w-3.5 h-3.5" /> Delete
+            <div className="border-t border-border my-0.5" />
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(task.id); setMenuOpen(false); }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/5 transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+              Delete
             </button>
           </div>
         )}

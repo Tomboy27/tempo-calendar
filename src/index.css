@@ -2,77 +2,118 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* =============================================
+   Design System Tokens
+   ============================================= */
+
 :root {
-  --background: oklch(0.9383 0.0042 236.4993);
-  --foreground: oklch(0.3211 0 0);
-  --card: oklch(1.0000 0 0);
-  --card-foreground: oklch(0.3211 0 0);
-  --popover: oklch(1.0000 0 0);
-  --popover-foreground: oklch(0.3211 0 0);
-  --primary: oklch(0.6420 0.1691 38.5815);
-  --primary-foreground: oklch(1.0000 0 0);
-  --secondary: oklch(0.4138 0.0846 259.8759);
-  --secondary-foreground: oklch(0.9994 0.0026 106.4468);
-  --muted: oklch(0.9846 0.0017 247.8389);
-  --muted-foreground: oklch(0.5510 0.0234 264.3637);
-  --accent: oklch(0.9119 0.0222 243.8174);
-  --accent-foreground: oklch(0.3791 0.1378 265.5222);
-  --destructive: oklch(0.6368 0.2078 25.3313);
-  --destructive-foreground: oklch(1.0000 0 0);
-  --border: oklch(0.8452 0 0);
-  --input: oklch(0.9700 0.0029 264.5420);
-  --ring: oklch(0.6397 0.1720 36.4421);
-  --chart-1: oklch(0.6693 0.0706 248.9230);
-  --chart-2: oklch(0.6678 0.1546 41.6200);
-  --chart-3: oklch(0.5957 0.1807 19.9763);
-  --chart-4: oklch(0.7859 0.1342 83.6986);
-  --chart-5: oklch(0.4227 0.0732 267.3899);
-  --sidebar: oklch(0.9030 0.0046 258.3257);
-  --sidebar-foreground: oklch(0.3211 0 0);
-  --sidebar-primary: oklch(0.6397 0.1720 36.4421);
-  --sidebar-primary-foreground: oklch(1.0000 0 0);
-  --sidebar-accent: oklch(0.9119 0.0222 243.8174);
-  --sidebar-accent-foreground: oklch(0.3791 0.1378 265.5222);
-  --sidebar-border: oklch(0.9276 0.0058 264.5313);
-  --sidebar-ring: oklch(0.6397 0.1720 36.4421);
-  --font-sans: Outfit, sans-serif;
-  --font-serif: Merriweather, serif;
-  --font-mono: Fira Code, monospace;
-  --radius: 0.5rem;
+  /* Surfaces */
+  --background: oklch(0.985 0.002 247);
+  --foreground: oklch(0.15 0.01 264);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.15 0.01 264);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.15 0.01 264);
+
+  /* Brand */
+  --primary: oklch(0.55 0.18 25);
+  --primary-foreground: oklch(0.99 0 0);
+
+  /* Secondary */
+  --secondary: oklch(0.96 0.005 247);
+  --secondary-foreground: oklch(0.35 0.02 264);
+
+  /* Muted */
+  --muted: oklch(0.965 0.003 247);
+  --muted-foreground: oklch(0.5 0.02 264);
+
+  /* Accent */
+  --accent: oklch(0.95 0.01 247);
+  --accent-foreground: oklch(0.25 0.05 264);
+
+  /* Status */
+  --destructive: oklch(0.58 0.22 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --success: oklch(0.55 0.15 155);
+  --warning: oklch(0.7 0.15 75);
+  --info: oklch(0.55 0.15 250);
+  --overdue: oklch(0.6 0.2 30);
+
+  /* Borders */
+  --border: oklch(0.91 0.005 247);
+  --input: oklch(0.93 0.003 247);
+  --ring: oklch(0.55 0.18 25);
+
+  /* Calendar events */
+  --event-task: oklch(0.92 0.06 25);
+  --event-task-border: oklch(0.65 0.18 25);
+  --event-external: oklch(0.94 0.015 250);
+  --event-external-border: oklch(0.65 0.08 250);
+  --event-locked: oklch(0.93 0.04 155);
+  --event-locked-border: oklch(0.55 0.12 155);
+  --event-overdue: oklch(0.93 0.04 30);
+  --event-overdue-border: oklch(0.6 0.18 30);
+
+  /* Typography */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Radii */
+  --radius: 0.375rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.04);
+  --shadow-md: 0 2px 8px oklch(0 0 0 / 0.06);
+  --shadow-lg: 0 4px 16px oklch(0 0 0 / 0.08);
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
 }
 
 .dark {
-  --background: oklch(0.2178 0 0);
-  --foreground: oklch(0.9219 0 0);
-  --card: oklch(0.2435 0 0);
-  --card-foreground: oklch(0.9219 0 0);
-  --popover: oklch(0.2435 0 0);
-  --popover-foreground: oklch(0.9219 0 0);
-  --primary: oklch(0.6420 0.1691 38.5815);
-  --primary-foreground: oklch(1.0000 0 0);
-  --secondary: oklch(0.3743 0.0726 258.5213);
-  --secondary-foreground: oklch(0.9219 0 0);
-  --muted: oklch(0.2850 0 0);
-  --muted-foreground: oklch(0.5999 0 0);
-  --accent: oklch(0.3380 0.0589 267.5867);
-  --accent-foreground: oklch(0.8823 0.0571 254.1284);
-  --destructive: oklch(0.6368 0.2078 25.3313);
-  --destructive-foreground: oklch(1.0000 0 0);
-  --border: oklch(0.3290 0 0);
-  --input: oklch(0.3092 0 0);
-  --ring: oklch(0.6397 0.1720 36.4421);
-  --sidebar: oklch(0.2393 0 0);
-  --sidebar-foreground: oklch(0.9219 0 0);
-  --sidebar-primary: oklch(0.6397 0.1720 36.4421);
-  --sidebar-primary-foreground: oklch(1.0000 0 0);
-  --sidebar-accent: oklch(0.3380 0.0589 267.5867);
-  --sidebar-accent-foreground: oklch(0.8823 0.0571 254.1284);
-  --sidebar-border: oklch(0.3290 0 0);
-  --sidebar-ring: oklch(0.6397 0.1720 36.4421);
-  --font-sans: Outfit, sans-serif;
-  --font-serif: Merriweather, serif;
-  --font-mono: Fira Code, monospace;
-  --radius: 0.5rem;
+  --background: oklch(0.13 0.005 264);
+  --foreground: oklch(0.93 0.005 247);
+  --card: oklch(0.16 0.005 264);
+  --card-foreground: oklch(0.93 0.005 247);
+  --popover: oklch(0.16 0.005 264);
+  --popover-foreground: oklch(0.93 0.005 247);
+  --primary: oklch(0.65 0.18 25);
+  --primary-foreground: oklch(0.13 0.005 264);
+  --secondary: oklch(0.2 0.008 264);
+  --secondary-foreground: oklch(0.85 0.01 247);
+  --muted: oklch(0.18 0.005 264);
+  --muted-foreground: oklch(0.55 0.01 247);
+  --accent: oklch(0.22 0.015 264);
+  --accent-foreground: oklch(0.9 0.01 247);
+  --destructive: oklch(0.6 0.22 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --success: oklch(0.6 0.15 155);
+  --warning: oklch(0.75 0.15 75);
+  --info: oklch(0.6 0.15 250);
+  --overdue: oklch(0.65 0.2 30);
+  --border: oklch(0.25 0.008 264);
+  --input: oklch(0.22 0.005 264);
+  --ring: oklch(0.65 0.18 25);
+  --event-task: oklch(0.3 0.08 25);
+  --event-task-border: oklch(0.55 0.18 25);
+  --event-external: oklch(0.25 0.02 250);
+  --event-external-border: oklch(0.5 0.08 250);
+  --event-locked: oklch(0.25 0.06 155);
+  --event-locked-border: oklch(0.5 0.12 155);
+  --event-overdue: oklch(0.3 0.06 30);
+  --event-overdue-border: oklch(0.55 0.18 30);
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2);
+  --shadow-md: 0 2px 8px oklch(0 0 0 / 0.25);
+  --shadow-lg: 0 4px 16px oklch(0 0 0 / 0.3);
 }
 
 @theme inline {
@@ -92,256 +133,137 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-overdue: var(--overdue);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Fira Code", ui-monospace, monospace;
-  --font-serif: "Merriweather", ui-serif, Georgia, serif;
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
 }
 
 /* =============================================
-   Animation Keyframes (Tailwind v4)
+   Base Styles
    ============================================= */
-
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes fade-out {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
-@keyframes slide-in-from-right {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
-}
-@keyframes slide-out-to-right {
-  from { transform: translateX(0); }
-  to { transform: translateX(100%); }
-}
-@keyframes slide-in-from-left {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
-}
-@keyframes slide-out-to-left {
-  from { transform: translateX(0); }
-  to { transform: translateX(-100%); }
-}
-@keyframes slide-in-from-top {
-  from { transform: translateY(-100%); }
-  to { transform: translateY(0); }
-}
-@keyframes slide-out-to-top {
-  from { transform: translateY(0); }
-  to { transform: translateY(-100%); }
-}
-@keyframes slide-in-from-bottom {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-@keyframes slide-out-to-bottom {
-  from { transform: translateY(0); }
-  to { transform: translateY(100%); }
-}
-
-@keyframes zoom-in {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-@keyframes zoom-out {
-  from { transform: scale(1); opacity: 1; }
-  to { transform: scale(0.95); opacity: 0; }
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground font-sans text-sm leading-relaxed antialiased;
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    margin: 0;
-  }
-  /* App-level headings — scoped so compact controls are not affected */
-  h1:where(.app-heading) {
-    @apply font-sans text-3xl md:text-4xl font-bold leading-tight;
-  }
-  h2:where(.app-heading) {
-    @apply font-sans text-2xl md:text-3xl font-semibold leading-tight;
-  }
-  h3:where(.app-heading) {
-    @apply font-sans text-xl md:text-2xl font-medium leading-tight;
   }
 }
 
-/* Animation utility classes for shadcn/ui components */
-.animate-in {
-  animation-duration: 200ms;
-  animation-timing-function: ease-out;
-  animation-fill-mode: forwards;
-}
-.animate-out {
-  animation-duration: 150ms;
-  animation-timing-function: ease-in;
-  animation-fill-mode: forwards;
-}
-.fade-in-0 { animation-name: fade-in; }
-.fade-out-0 { animation-name: fade-out; }
-.fade-in { animation-name: fade-in; }
-.fade-out { animation-name: fade-out; }
+/* =============================================
+   Scrollbar
+   ============================================= */
 
-.slide-in-from-right { animation-name: slide-in-from-right; }
-.slide-out-to-right { animation-name: slide-out-to-right; }
-.slide-in-from-left { animation-name: slide-in-from-left; }
-.slide-out-to-left { animation-name: slide-out-to-left; }
-.slide-in-from-top { animation-name: slide-in-from-top; }
-.slide-out-to-top { animation-name: slide-out-to-top; }
-.slide-in-from-bottom { animation-name: slide-in-from-bottom; }
-.slide-out-to-bottom { animation-name: slide-out-to-bottom; }
-
-/* NavigationMenu specific slide variants */
-.slide-in-from-right-52 {
-  animation-name: slide-in-from-right;
-  --tw-enter-translate-x: 52px;
-}
-.slide-out-to-right-52 {
-  animation-name: slide-out-to-right;
-  --tw-exit-translate-x: 52px;
-}
-.slide-in-from-left-52 {
-  animation-name: slide-in-from-left;
-  --tw-enter-translate-x: -52px;
-}
-.slide-out-to-left-52 {
-  animation-name: slide-out-to-left;
-  --tw-exit-translate-x: -52px;
-}
-
-.zoom-in-90 { animation-name: zoom-in; }
-.zoom-out-95 { animation-name: zoom-out; }
-
-.animate-spin {
-  animation-name: spin;
-  animation-duration: 1s;
-  animation-iteration-count: infinite;
-}
-
-/* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
 
 /* =============================================
-   react-big-calendar Theme Overrides
+   react-big-calendar — Complete Override
    ============================================= */
 
 .big-calendar-wrapper {
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 12px;
 }
 
 .big-calendar-wrapper .rbc-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-  font-family: inherit;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 0;
+  border: none;
+  background: none;
 }
 
 .big-calendar-wrapper .rbc-toolbar-label {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 13px;
   color: var(--foreground);
-  order: -1;
-  width: 100%;
-  text-align: center;
-  padding: 0.25rem 0;
+  margin: 0;
+  flex: 1;
+  text-align: left;
 }
 
 .big-calendar-wrapper .rbc-btn-group {
   display: flex;
-  gap: 2px;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
 }
 
 .big-calendar-wrapper .rbc-btn-group button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
+  padding: 4px 10px;
+  font-size: 11px;
   font-weight: 500;
-  border: 1px solid var(--border);
+  border: none;
+  border-right: 1px solid var(--border);
   background: var(--card);
-  color: var(--foreground);
+  color: var(--muted-foreground);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background 120ms ease-out, color 120ms ease-out;
   font-family: inherit;
-}
-
-.big-calendar-wrapper .rbc-btn-group button:first-child {
-  border-radius: var(--radius) 0 0 var(--radius);
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .big-calendar-wrapper .rbc-btn-group button:last-child {
-  border-radius: 0 var(--radius) var(--radius) 0;
+  border-right: none;
 }
 
 .big-calendar-wrapper .rbc-btn-group button.rbc-active {
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border-color: var(--primary);
+  background: var(--foreground);
+  color: var(--background);
 }
 
 .big-calendar-wrapper .rbc-btn-group button:hover:not(.rbc-active) {
   background: var(--accent);
-  color: var(--accent-foreground);
+  color: var(--foreground);
 }
 
 .big-calendar-wrapper .rbc-calendar {
   background: var(--card);
-  border-radius: var(--radius);
   border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
 .big-calendar-wrapper .rbc-header {
-  padding: 0.375rem 0.25rem;
-  font-weight: 500;
-  font-size: 0.7rem;
+  padding: 6px 4px;
+  font-weight: 600;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   color: var(--muted-foreground);
   background: var(--muted);
   border-bottom: 1px solid var(--border);
   border-left: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 .big-calendar-wrapper .rbc-header + .rbc-header {
@@ -353,7 +275,7 @@
 }
 
 .big-calendar-wrapper .rbc-today {
-  background: var(--accent);
+  background: oklch(0.95 0.03 25);
 }
 
 .big-calendar-wrapper .rbc-time-gutter .rbc-timeslot-group {
@@ -361,8 +283,8 @@
 }
 
 .big-calendar-wrapper .rbc-time-gutter .rbc-label {
-  padding: 0 0.375rem;
-  font-size: 0.7rem;
+  padding: 0 6px;
+  font-size: 10px;
   color: var(--muted-foreground);
   font-weight: 400;
 }
@@ -385,7 +307,7 @@
 
 .big-calendar-wrapper .rbc-timeslot-group {
   border-bottom: 1px solid var(--border);
-  min-height: 48px;
+  min-height: 40px;
 }
 
 .big-calendar-wrapper .rbc-month-view {
@@ -398,8 +320,8 @@
 }
 
 .big-calendar-wrapper .rbc-date-cell {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.8rem;
+  padding: 2px 4px;
+  font-size: 11px;
   color: var(--foreground);
 }
 
@@ -442,38 +364,41 @@
 }
 
 .big-calendar-wrapper .rbc-agenda-table td {
-  padding: 0.375rem 0.5rem;
-  font-size: 0.75rem;
+  padding: 4px 8px;
+  font-size: 12px;
   color: var(--foreground);
   border: none;
 }
 
 .big-calendar-wrapper .rbc-agenda-time-cell {
   color: var(--muted-foreground);
-  font-size: 0.7rem;
+  font-size: 11px;
   white-space: nowrap;
 }
 
+/* Events */
 .big-calendar-wrapper .rbc-event {
   border: none !important;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   padding: 0;
   background: transparent;
   font-family: inherit;
+  border-left: 3px solid transparent;
 }
 
 .big-calendar-wrapper .rbc-event-content {
-  font-size: 0.75rem;
+  font-size: 11px;
   line-height: 1.3;
+  padding: 1px 4px;
 }
 
 .big-calendar-wrapper .rbc-show-more {
-  font-size: 0.7rem;
+  font-size: 10px;
   color: var(--primary);
   font-weight: 500;
   background: none;
   border: none;
-  padding: 0.125rem 0.25rem;
+  padding: 1px 4px;
   cursor: pointer;
 }
 
@@ -487,22 +412,9 @@
 
 .big-calendar-wrapper .rbc-slot-selection {
   background: var(--primary);
-  opacity: 0.15;
+  opacity: 0.12;
 }
 
-/* Custom event styling */
-.big-calendar-wrapper .rbc-event.event-task {
-  background: var(--secondary) !important;
-  color: var(--secondary-foreground) !important;
-  opacity: 0.9;
-}
-
-.big-calendar-wrapper .rbc-event.event-google {
-  background: var(--primary) !important;
-  color: var(--primary-foreground) !important;
-}
-
-/* All day events */
 .big-calendar-wrapper .rbc-allday-cell {
   border-bottom: 1px solid var(--border);
 }
@@ -511,109 +423,159 @@
   background: var(--primary);
   color: var(--primary-foreground);
   border-radius: var(--radius-sm);
-  padding: 0.125rem 0.375rem;
-  font-size: 0.7rem;
+  padding: 1px 4px;
+  font-size: 10px;
 }
+
+/* Event state classes */
+.big-calendar-wrapper .rbc-event.event-task {
+  background: var(--event-task) !important;
+  border-left-color: var(--event-task-border) !important;
+  color: oklch(0.25 0.08 25) !important;
+}
+
+.big-calendar-wrapper .rbc-event.event-google {
+  background: var(--event-external) !important;
+  border-left-color: var(--event-external-border) !important;
+  color: oklch(0.25 0.02 250) !important;
+}
+
+.big-calendar-wrapper .rbc-event.event-locked {
+  background: var(--event-locked) !important;
+  border-left-color: var(--event-locked-border) !important;
+}
+
+.big-calendar-wrapper .rbc-event.event-missed {
+  background: var(--event-overdue) !important;
+  border-left-color: var(--event-overdue-border) !important;
+}
+
+.big-calendar-wrapper .rbc-event.event-flexible {
+  border-left-style: dashed !important;
+}
+
+/* Current time line */
+.big-calendar-wrapper .rbc-current-time {
+  background: var(--primary);
+  opacity: 0.7;
+}
+
+/* =============================================
+   Mobile calendar overrides
+   ============================================= */
 
 @media (max-width: 768px) {
   .big-calendar-wrapper .rbc-toolbar {
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
   }
 
   .big-calendar-wrapper .rbc-toolbar-label {
-    order: 0;
-    font-size: 0.8rem;
-  }
-
-  .big-calendar-wrapper .rbc-btn-group {
-    justify-content: center;
+    font-size: 12px;
+    width: 100%;
+    text-align: center;
   }
 
   .big-calendar-wrapper .rbc-btn-group button {
-    padding: 0.25rem 0.375rem;
-    font-size: 0.7rem;
+    padding: 3px 6px;
+    font-size: 10px;
   }
 
   .big-calendar-wrapper .rbc-header {
-    font-size: 0.6rem;
-    padding: 0.25rem 0.125rem;
+    font-size: 9px;
+    padding: 3px 2px;
   }
 
   .big-calendar-wrapper .rbc-date-cell {
-    font-size: 0.7rem;
-    padding: 0.125rem 0.25rem;
+    font-size: 10px;
+    padding: 1px 2px;
   }
 
   .big-calendar-wrapper .rbc-agenda-table td {
-    font-size: 0.7rem;
-    padding: 0.25rem 0.375rem;
+    font-size: 10px;
+    padding: 2px 4px;
   }
 
   .big-calendar-wrapper .rbc-time-gutter .rbc-label {
-    font-size: 0.6rem;
-    padding: 0 0.25rem;
+    font-size: 9px;
   }
 }
 
 /* =============================================
-   Radix Dialog overlay for TaskDialog
+   Animations
+   ============================================= */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-up {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-4px); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-fade-in { animation: fade-in 150ms ease-out; }
+.animate-slide-down { animation: slide-down 150ms ease-out; }
+.animate-scale-in { animation: scale-in 120ms ease-out; }
+.animate-spin { animation: spin 800ms linear infinite; }
+
+/* =============================================
+   Dialog overlay
    ============================================= */
 .dialog-overlay {
-  @apply fixed inset-0 bg-foreground/40 z-40;
-  animation: fade-in 150ms ease-out;
+  position: fixed;
+  inset: 0;
+  background: oklch(0 0 0 / 0.4);
+  z-index: 40;
+  animation: fade-in 120ms ease-out;
 }
 
 .dialog-content {
-  @apply fixed left-1/2 top-1/2 z-50 w-full max-w-lg max-h-[85vh] -translate-x-1/2 -translate-y-1/2 bg-card border border-border rounded-xl shadow-xl overflow-y-auto;
-  animation: zoom-in 150ms ease-out;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 50;
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  transform: translate(-50%, -50%);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow-y: auto;
+  animation: scale-in 120ms ease-out;
 }
 
 /* =============================================
-   Calendar Event Visual States
+   Focus styles
    ============================================= */
 
-/* External (Google) events: neutral, read-only */
-.event-google {
-  background-color: oklch(0.85 0.02 250) !important;
-  border-left: 3px solid oklch(0.6 0.05 250) !important;
-  color: oklch(0.3 0.02 250) !important;
-  cursor: default !important;
-  opacity: 0.85;
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
-/* Task events: primary color */
-.event-task {
-  background-color: oklch(0.92 0.08 38) !important;
-  border-left: 3px solid oklch(0.7 0.15 38) !important;
-  color: oklch(0.3 0.1 38) !important;
-}
+/* =============================================
+   Utility classes
+   ============================================= */
 
-/* Locked task events: have a lock indicator, muted color */
-.event-locked {
-  background-color: oklch(0.9 0.04 150) !important;
-  border-left: 3px solid oklch(0.55 0.12 150) !important;
-  color: oklch(0.3 0.08 150) !important;
-  position: relative;
-}
-.event-locked::after {
-  content: "\1F512";
-  font-size: 10px;
-  position: absolute;
-  top: 2px;
-  right: 4px;
-  opacity: 0.6;
-}
-
-/* Missed/overdue task events: urgent but not garish */
-.event-missed {
-  background-color: oklch(0.92 0.06 25) !important;
-  border-left: 3px solid oklch(0.65 0.18 25) !important;
-  color: oklch(0.35 0.12 25) !important;
-}
-
-/* Flexible task events: subtle dashed border to indicate movability */
-.event-flexible {
-  border-left-style: dashed !important;
-  opacity: 0.9;
-}
+.text-xs { font-size: 11px; line-height: 1.4; }
+.text-sm { font-size: 13px; line-height: 1.5; }
+.text-base { font-size: 14px; line-height: 1.5; }

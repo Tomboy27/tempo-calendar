@@ -27,3 +27,5 @@ skills
 *.njsproj
 *.sln
 *.sw?
+
+.vercel

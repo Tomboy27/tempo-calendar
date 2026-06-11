@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
+import { X, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from './ui/button';
 import type { TaskInput } from '../lib/tasks';
 import type { TaskPriority, TaskFrequency } from '../lib/types';
@@ -28,11 +27,11 @@ const FREQUENCIES: { value: TaskFrequency; label: string }[] = [
 ];
 
 const COLORS = [
-  '#D97706', '#EF4444', '#F59E0B', '#10B981', '#3B82F6',
-  '#8B5CF6', '#EC4899', '#14B8A6', '#F97316', '#6366F1',
+  '#B45309', '#DC2626', '#D97706', '#059669', '#2563EB',
+  '#7C3AED', '#DB2777', '#0D9488', '#EA580C', '#4F46E5',
 ];
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 export function TaskDialog({ open, onClose, onSave, initial, title }: TaskDialogProps) {
   const [form, setForm] = useState({
@@ -42,7 +41,7 @@ export function TaskDialog({ open, onClose, onSave, initial, title }: TaskDialog
     priority: (initial?.priority || 'NORMAL') as TaskPriority,
     frequency: (initial?.frequency || 'once') as TaskFrequency,
     due_date: initial?.due_date || '',
-    color: initial?.color || '#D97706',
+    color: initial?.color || '#B45309',
     tags: (initial?.tags || []).join(', '),
     preferred_days: initial?.preferred_days || [] as number[],
     is_habit: initial?.is_habit || false,
@@ -96,15 +95,15 @@ export function TaskDialog({ open, onClose, onSave, initial, title }: TaskDialog
         can_balance_across_days: form.can_balance_across_days,
         buffer_before_minutes: form.buffer_before_minutes || undefined,
         buffer_after_minutes: form.buffer_after_minutes || undefined,
-          notes: form.notes || undefined,
-          deadline: form.deadline || undefined,
-          is_locked: form.is_locked,
-          auto_schedule: form.auto_schedule,
-          scheduling_cutoff_weeks: form.scheduling_cutoff_weeks,
-          preferred_time_windows: form.preferred_time_start && form.preferred_time_end
-            ? [JSON.stringify({ start: form.preferred_time_start, end: form.preferred_time_end })]
-            : undefined,
-        });
+        notes: form.notes || undefined,
+        deadline: form.deadline || undefined,
+        is_locked: form.is_locked,
+        auto_schedule: form.auto_schedule,
+        scheduling_cutoff_weeks: form.scheduling_cutoff_weeks,
+        preferred_time_windows: form.preferred_time_start && form.preferred_time_end
+          ? [JSON.stringify({ start: form.preferred_time_start, end: form.preferred_time_end })]
+          : undefined,
+      });
       onClose();
     } catch (err: any) {
       setSaveError(err?.message || 'Failed to save task');
@@ -123,220 +122,235 @@ export function TaskDialog({ open, onClose, onSave, initial, title }: TaskDialog
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-12">
-      <div className="fixed inset-0 bg-foreground/50" onClick={onClose} />
-      <Card className="relative w-full max-w-lg max-h-[80vh] overflow-y-auto">
-        <CardHeader className="flex flex-row items-center justify-between px-6 py-5">
-          <CardTitle className="text-base md:text-lg">{title || (initial ? 'Edit Task' : 'New Task')}</CardTitle>
-          <button onClick={onClose} className="p-1 rounded-md hover:bg-accent text-muted-foreground transition-colors">
-            <X className="w-4 h-4" />
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]">
+      <div className="dialog-overlay" onClick={onClose} />
+      <div className="dialog-content p-0" role="dialog" aria-modal="true" aria-label={title || 'Task'}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">{title || 'New task'}</h3>
+          <button
+            onClick={onClose}
+            className="p-0.5 rounded hover:bg-accent text-muted-foreground transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-3.5 h-3.5" />
           </button>
-        </CardHeader>
+        </div>
 
-        <CardContent className="px-6 pb-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <input
-                type="text"
-                value={form.title}
-                onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                placeholder="Task Title"
-                className="w-full px-3 py-2 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring placeholder-muted-foreground bg-background"
-                autoFocus
-              />
-            </div>
-            <div className="w-24">
-              <div className="flex items-center gap-1">
+        <form onSubmit={handleSubmit} className="px-5 py-4 space-y-5">
+          {/* Basics */}
+          <section className="space-y-3">
+            <input
+              type="text"
+              value={form.title}
+              onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+              placeholder="Task title"
+              className="w-full px-3 py-2 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring placeholder-muted-foreground bg-background"
+              autoFocus
+            />
+
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+              placeholder="Description (optional)"
+              rows={2}
+              className="w-full px-3 py-2 text-xs border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring placeholder-muted-foreground resize-none bg-background"
+            />
+
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Duration</label>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    value={form.duration_minutes}
+                    onChange={(e) => setForm((p) => ({ ...p, duration_minutes: Math.max(5, parseInt(e.target.value) || 5) }))}
+                    className="w-full px-2 py-1.5 text-xs border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+                    min={5}
+                    step={5}
+                  />
+                  <span className="text-[10px] text-muted-foreground">min</span>
+                </div>
+              </div>
+              <div className="flex-1">
+                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Due date</label>
                 <input
-                  type="number"
-                  value={form.duration_minutes}
-                  onChange={(e) => setForm((p) => ({ ...p, duration_minutes: Math.max(5, parseInt(e.target.value) || 5) }))}
-                  className="w-full px-3 py-2 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background"
-                  min={5}
-                  step={5}
+                  type="date"
+                  value={form.due_date}
+                  onChange={(e) => setForm((p) => ({ ...p, due_date: e.target.value }))}
+                  className="w-full px-2 py-1.5 text-xs border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background"
                 />
-            <span className="text-sm text-muted-foreground shrink-0">Min</span>
+              </div>
+              <div className="w-20">
+                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Repeat</label>
+                <select
+                  value={form.frequency}
+                  onChange={(e) => setForm((p) => ({ ...p, frequency: e.target.value as TaskFrequency }))}
+                  className="w-full px-2 py-1.5 text-xs border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+                >
+                  {FREQUENCIES.map((f) => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))}
+                </select>
               </div>
             </div>
-          </div>
+          </section>
 
-          <div>
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">Priority</label>
-            <div className="flex gap-1">
+          {/* Priority */}
+          <section>
+            <label className="text-[11px] font-medium text-muted-foreground mb-1.5 block">Priority</label>
+            <div className="flex gap-0.5 p-0.5 bg-muted rounded-md">
               {PRIORITIES.map((p) => (
                 <button
                   key={p.value}
                   type="button"
                   onClick={() => setForm((prev) => ({ ...prev, priority: p.value }))}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  className={`flex-1 px-2 py-1 text-[11px] font-medium rounded transition-colors ${
                     form.priority === p.value
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   {p.label}
                 </button>
               ))}
             </div>
-          </div>
+          </section>
 
-          <div>
-            <textarea
-              value={form.description}
-              onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-              placeholder="Description (Optional)"
-              rows={2}
-              className="w-full px-3 py-2 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring placeholder-muted-foreground resize-none bg-background"
-            />
-          </div>
-
-          <div className="flex gap-3">
-            <div className="flex-1">
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">Due Date</label>
-              <input
-                type="date"
-                value={form.due_date}
-                onChange={(e) => setForm((p) => ({ ...p, due_date: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background"
-              />
-            </div>
-            <div className="w-28">
-              <label className="text-sm font-medium text-muted-foreground mb-2 block">Frequency</label>
-              <select
-                value={form.frequency}
-                onChange={(e) => setForm((p) => ({ ...p, frequency: e.target.value as TaskFrequency }))}
-                className="w-full px-3 py-2 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background"
-              >
-                {FREQUENCIES.map((f) => (
-                  <option key={f.value} value={f.value}>{f.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">Color</label>
-            <div className="flex gap-2">
+          {/* Color */}
+          <section>
+            <label className="text-[11px] font-medium text-muted-foreground mb-1.5 block">Color</label>
+            <div className="flex gap-1.5">
               {COLORS.map((c) => (
                 <button
                   key={c}
                   type="button"
                   onClick={() => setForm((p) => ({ ...p, color: c }))}
-                  className={`w-5 h-5 rounded-full transition-all ${
-                    form.color === c ? 'ring-2 ring-offset-1 ring-ring' : ''
+                  className={`w-4 h-4 rounded-full transition-all ${
+                    form.color === c ? 'ring-2 ring-offset-1 ring-foreground/30 scale-110' : 'hover:scale-110'
                   }`}
                   style={{ backgroundColor: c }}
+                  aria-label={`Color ${c}`}
                 />
               ))}
             </div>
-          </div>
+          </section>
 
-          <div>
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">Tags</label>
+          {/* Preferred days */}
+          <section>
+            <label className="text-[11px] font-medium text-muted-foreground mb-1.5 block">Preferred days</label>
+            <div className="flex gap-1">
+              {DAYS.map((day, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => toggleDay(i + 1)}
+                  className={`w-7 h-7 text-[10px] font-medium rounded-md transition-colors ${
+                    form.preferred_days.includes(i + 1)
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  {day}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* Tags */}
+          <section>
+            <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Tags</label>
             <input
               type="text"
               value={form.tags}
               onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))}
-              placeholder="Work, Personal, Health (Comma-Separated)"
-              className="w-full px-3 py-2 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring placeholder-muted-foreground bg-background"
+              placeholder="Work, Personal (comma-separated)"
+              className="w-full px-3 py-1.5 text-xs border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring placeholder-muted-foreground bg-background"
             />
-          </div>
+          </section>
 
-          <div>
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">Preferred Days</label>
-            <div className="flex gap-1">
-              {DAYS.map((day, i) => (
-                <button
-                  key={day}
-                  type="button"
-                  onClick={() => toggleDay(i + 1)}
-                  className={`w-8 h-8 text-xs font-medium rounded-md transition-colors ${
-                    form.preferred_days.includes(i + 1)
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                  }`}
-                >
-                  {day.charAt(0)}
-                </button>
-              ))}
-            </div>
-          </div>
-
+          {/* Advanced toggle */}
           <button
             type="button"
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+            className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
-            {showAdvanced ? 'Hide Advanced' : 'Advanced'}
+            {showAdvanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            Advanced settings
           </button>
 
+          {/* Advanced */}
           {showAdvanced && (
-            <div className="p-4 bg-muted border border-border rounded-md space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+            <section className="space-y-3 pt-2 border-t border-border">
+              <div className="grid grid-cols-2 gap-2">
                 {[
+                  { key: 'is_locked', label: 'Locked' },
+                  { key: 'auto_schedule', label: 'Auto-schedule' },
                   { key: 'is_habit', label: 'Habit' },
-                  { key: 'can_split', label: 'Can Split' },
-                  { key: 'is_busy_block', label: 'Busy Block' },
-                  { key: 'is_locked', label: 'Locked (Fixed)' },
-                  { key: 'auto_schedule', label: 'Auto Schedule' },
-                  { key: 'ignore_if_cannot_schedule', label: 'Skip If No Slot' },
-                  { key: 'can_balance_across_days', label: 'Balance Days' },
+                  { key: 'can_split', label: 'Can split' },
+                  { key: 'is_busy_block', label: 'Busy block' },
+                  { key: 'ignore_if_cannot_schedule', label: 'Skip if no slot' },
+                  { key: 'can_balance_across_days', label: 'Balance across days' },
                 ].map(({ key, label }) => (
-                  <label key={key} className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <label key={key} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
                     <input
                       type="checkbox"
                       checked={(form as any)[key]}
                       onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.checked }))}
-                      className="rounded border-border text-primary focus:ring-ring"
+                      className="rounded border-border text-primary focus:ring-ring w-3.5 h-3.5"
                     />
                     {label}
                   </label>
                 ))}
               </div>
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
-                <div>
-                  <label className="text-xs text-muted-foreground block mb-1">Buffer Before (Min)</label>
-                  <input type="number" value={form.buffer_before_minutes} onChange={(e) => setForm((p) => ({ ...p, buffer_before_minutes: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" min={0} step={5} />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground block mb-1">Buffer After (Min)</label>
-                  <input type="number" value={form.buffer_after_minutes} onChange={(e) => setForm((p) => ({ ...p, buffer_after_minutes: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" min={0} step={5} />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1">Deadline</label>
-                <input type="date" value={form.deadline} onChange={(e) => setForm((p) => ({ ...p, deadline: e.target.value }))} className="w-full px-3 py-1.5 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" />
-              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-muted-foreground block mb-1">Scheduling Horizon (Weeks)</label>
-                  <input type="number" value={form.scheduling_cutoff_weeks} onChange={(e) => setForm((p) => ({ ...p, scheduling_cutoff_weeks: Math.max(1, parseInt(e.target.value) || 8) }))} className="w-full px-3 py-1.5 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" min={1} max={52} />
+                  <label className="text-[11px] text-muted-foreground block mb-1">Buffer before (min)</label>
+                  <input type="number" value={form.buffer_before_minutes} onChange={(e) => setForm((p) => ({ ...p, buffer_before_minutes: parseInt(e.target.value) || 0 }))} className="w-full px-2 py-1.5 text-xs border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" min={0} step={5} />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground block mb-1">Preferred Time Window</label>
+                  <label className="text-[11px] text-muted-foreground block mb-1">Buffer after (min)</label>
+                  <input type="number" value={form.buffer_after_minutes} onChange={(e) => setForm((p) => ({ ...p, buffer_after_minutes: parseInt(e.target.value) || 0 }))} className="w-full px-2 py-1.5 text-xs border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" min={0} step={5} />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-muted-foreground block mb-1">Deadline</label>
+                <input type="date" value={form.deadline} onChange={(e) => setForm((p) => ({ ...p, deadline: e.target.value }))} className="w-full px-2 py-1.5 text-xs border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-muted-foreground block mb-1">Scheduling horizon (weeks)</label>
+                  <input type="number" value={form.scheduling_cutoff_weeks} onChange={(e) => setForm((p) => ({ ...p, scheduling_cutoff_weeks: Math.max(1, parseInt(e.target.value) || 8) }))} className="w-full px-2 py-1.5 text-xs border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" min={1} max={52} />
+                </div>
+                <div>
+                  <label className="text-[11px] text-muted-foreground block mb-1">Preferred time</label>
                   <div className="flex items-center gap-1">
-                    <input type="time" value={form.preferred_time_start} onChange={(e) => setForm((p) => ({ ...p, preferred_time_start: e.target.value }))} className="w-full px-2 py-1.5 text-xs border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" />
-                    <span className="text-xs text-muted-foreground">-</span>
-                    <input type="time" value={form.preferred_time_end} onChange={(e) => setForm((p) => ({ ...p, preferred_time_end: e.target.value }))} className="w-full px-2 py-1.5 text-xs border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" />
+                    <input type="time" value={form.preferred_time_start} onChange={(e) => setForm((p) => ({ ...p, preferred_time_start: e.target.value }))} className="w-full px-1.5 py-1.5 text-[10px] border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" />
+                    <span className="text-[10px] text-muted-foreground">&ndash;</span>
+                    <input type="time" value={form.preferred_time_end} onChange={(e) => setForm((p) => ({ ...p, preferred_time_end: e.target.value }))} className="w-full px-1.5 py-1.5 text-[10px] border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background" />
                   </div>
                 </div>
               </div>
+
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">Notes</label>
-                <textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Internal Notes" className="w-full px-3 py-2 text-sm border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring placeholder-muted-foreground resize-none bg-background" />
+                <label className="text-[11px] text-muted-foreground block mb-1">Notes</label>
+                <textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Internal notes" className="w-full px-3 py-1.5 text-xs border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring placeholder-muted-foreground resize-none bg-background" />
               </div>
-            </div>
+            </section>
           )}
 
           {saveError && (
-            <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-md">
-              <p className="text-sm text-destructive">{saveError}</p>
+            <div className="p-3 bg-destructive/5 border border-destructive/20 rounded-md">
+              <p className="text-xs text-destructive">{saveError}</p>
             </div>
           )}
 
-          <div className="flex gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
+          {/* Actions */}
+          <div className="flex gap-2 pt-1">
+            <Button type="button" variant="ghost" onClick={onClose} className="flex-1">
               Cancel
             </Button>
             <Button type="submit" disabled={!form.title.trim() || saving} className="flex-1">
@@ -344,8 +358,7 @@ export function TaskDialog({ open, onClose, onSave, initial, title }: TaskDialog
             </Button>
           </div>
         </form>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }
