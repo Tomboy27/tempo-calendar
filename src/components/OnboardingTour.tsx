@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import { ChevronLeft, ChevronRight, X, Calendar, Zap, Inbox, Sparkles, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -8,7 +8,6 @@ interface OnboardingStep {
   body: string;
   icon: React.ComponentType<{ className?: string }>;
   target: string; // CSS selector for spotlight
-  placement?: 'top' | 'bottom' | 'left' | 'right';
 }
 
 const STEPS: OnboardingStep[] = [
@@ -25,7 +24,6 @@ const STEPS: OnboardingStep[] = [
     body: 'Type into the quick-add bar above. Press Enter to schedule it. Hit the sparkle for full options.',
     icon: Inbox,
     target: '[data-onboarding="quick-add"]',
-    placement: 'bottom',
   },
   {
     id: 'calendar',
@@ -33,7 +31,6 @@ const STEPS: OnboardingStep[] = [
     body: 'Click any empty slot to create a task at that time. Click an event to edit or unschedule it.',
     icon: Calendar,
     target: '[data-onboarding="calendar"]',
-    placement: 'top',
   },
   {
     id: 'conflicts',
@@ -41,7 +38,6 @@ const STEPS: OnboardingStep[] = [
     body: 'When a task overlaps a calendar event, we flag it. One click recalculates a clean plan.',
     icon: Zap,
     target: '[data-onboarding="conflict-banner"]',
-    placement: 'bottom',
   },
 ];
 
@@ -53,21 +49,25 @@ interface OnboardingTourProps {
 }
 
 export function OnboardingTour({ forceOpen, onComplete }: OnboardingTourProps) {
-  const [open, setOpen] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
-
-  useEffect(() => {
-    if (forceOpen) {
-      setOpen(true);
-      setStepIndex(0);
-      return;
-    }
+  const [open, setOpen] = useState(() => {
+    if (forceOpen) return true;
     try {
-      if (!localStorage.getItem(STORAGE_KEY)) {
-        setOpen(true);
-      }
-    } catch { /* ignore */ }
-  }, [forceOpen]);
+      return !localStorage.getItem(STORAGE_KEY);
+    } catch {
+      return false;
+    }
+  });
+  const [stepIndex, setStepIndex] = useState(0);
+  const prevForceOpenRef = useRef(forceOpen);
+
+  // Handle forceOpen changes by setting state during render (allowed React pattern)
+  if (forceOpen && !prevForceOpenRef.current) {
+    prevForceOpenRef.current = true;
+    setOpen(true);
+    setStepIndex(0);
+  } else if (!forceOpen && prevForceOpenRef.current) {
+    prevForceOpenRef.current = false;
+  }
 
   const finish = useCallback(() => {
     try { localStorage.setItem(STORAGE_KEY, 'true'); } catch { /* ignore */ }

@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useGoogleCalendar } from './hooks/useGoogleCalendar';
 import { useTasks } from './hooks/useTasks';
 import { useAuth } from './hooks/useAuth';
 import { Header } from './components/Header';
-import { TempoCalendar, type CalendarEventType, type CalendarView } from './components/TempoCalendar';
+import { TempoCalendar, type CalendarEventType } from './components/TempoCalendar';
 import { BentoSidebar } from './components/BentoSidebar';
 import { TaskList } from './components/TaskList';
 import { TaskDialog } from './components/TaskDialog';
@@ -11,7 +11,7 @@ import { AuthDialog } from './components/AuthDialog';
 import { SettingsPanel } from './components/SettingsPanel';
 import { OnboardingTour } from './components/OnboardingTour';
 import { Button } from './components/ui/button';
-import { AlertCircle, Link2, RefreshCw, LogIn, Zap, Settings2, Sparkles } from 'lucide-react';
+import { AlertCircle, Link2, RefreshCw, LogIn, Zap, Settings2 } from 'lucide-react';
 import { detectConflicts } from './lib/rescheduler';
 import { isSupabaseReady } from './lib/supabase';
 import type { Task } from './lib/types';
@@ -74,7 +74,6 @@ function App() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [activeView, setActiveView] = useState<'calendar' | 'tasks'>('calendar');
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
-  const [calendarView, setCalendarView] = useState<CalendarView>('week');
   const didAuthTransitionRef = useRef(auth.isAuthenticated);
 
   const { tasks: allTasks, refresh } = tasksHook;
@@ -107,16 +106,22 @@ function App() {
       const originalTask = ev.source === 'task'
         ? allTasks.find((t) => `task-${t.id}` === ev.id)
         : null;
-      const isMissed = originalTask?.status === 'missed' ||
-        (originalTask?.is_scheduled && originalTask?.scheduled_end && new Date(originalTask.scheduled_end) < now);
+      const isMissed = Boolean(
+        originalTask?.status === 'missed' ||
+        (originalTask?.is_scheduled &&
+          originalTask?.scheduled_end &&
+          new Date(originalTask.scheduled_end) < now)
+      );
       const isCompleted = originalTask?.status === 'completed';
-      const isLocked = originalTask?.is_locked;
+      const isLocked = originalTask?.is_locked === true;
 
-      let variant: CalendarEventType['variant'] = 'primary';
-      if (isMissed) variant = 'destructive';
-      else if (isLocked) variant = 'success';
-      else if (ev.source === 'google') variant = 'muted';
-      else variant = 'secondary';
+      const variant: CalendarEventType['variant'] = isMissed
+        ? 'destructive'
+        : isLocked
+          ? 'success'
+          : ev.source === 'google'
+            ? 'muted'
+            : 'secondary';
 
       return {
         id: ev.id,
@@ -471,7 +476,7 @@ function App() {
         >
           <TempoCalendar
             events={tempoEvents}
-            defaultView={calendarView}
+            defaultView="week"
             onSelectEvent={handleSelectEvent}
             onSelectSlot={handleSelectSlot}
             startHour={parseInt(workingHours.start.split(':')[0], 10)}
@@ -488,7 +493,6 @@ function App() {
           {activeView === 'calendar' ? (
             <BentoSidebar
               tasks={allTasks}
-              calendarEventCount={calendar.events.length}
               conflictCount={conflictCount}
               isLoading={tasksHook.isLoading}
               onQuickAdd={handleQuickAdd}

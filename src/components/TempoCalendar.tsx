@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { format, startOfWeek, endOfWeek, addDays, addWeeks, addMonths, subWeeks, subMonths, subDays, startOfDay, endOfDay, isSameDay, isSameMonth, isToday, getDay, differenceInMinutes, setHours, setMinutes, setSeconds, setMilliseconds } from 'date-fns';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Sparkles } from 'lucide-react';
+import { format, startOfWeek, endOfWeek, addDays, addWeeks, addMonths, subWeeks, subMonths, subDays, startOfDay, endOfDay, isSameDay, isSameMonth, isToday, differenceInMinutes, setHours, setMinutes, setSeconds, setMilliseconds } from 'date-fns';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export type CalendarEventVariant = 'primary' | 'secondary' | 'warning' | 'destructive' | 'success' | 'muted';
@@ -219,7 +219,7 @@ function DayView({ date, events, startHour, endHour, onSelectEvent, onSelectSlot
             {hours.map((h) => (
               <div key={h} className="relative h-14 border-b border-border/40">
                 <span className="absolute top-0 right-3 -translate-y-1/2 text-[10px] font-medium text-muted-foreground bg-card px-1 tabular-nums">
-                  {format(setHours(new Date(), h), 'h a')}
+                  {format(setHours(d, h), 'h a')}
                 </span>
               </div>
             ))}
@@ -425,7 +425,7 @@ function WeekView({ date, events, startHour, endHour, onSelectEvent, onSelectSlo
             {hours.map((h) => (
               <div key={h} className="relative h-14 border-b border-border/40">
                 <span className="absolute top-0 right-3 -translate-y-1/2 text-[10px] font-medium text-muted-foreground bg-card px-1 tabular-nums">
-                  {format(setHours(new Date(), h), 'h a')}
+                  {format(setHours(d, h), 'h a')}
                 </span>
               </div>
             ))}

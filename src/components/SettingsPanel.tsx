@@ -111,8 +111,8 @@ export function SettingsPanel({
                   </h3>
                   <div className="grid grid-cols-3 gap-2">
                     {([
-                      { value: 'light', label: 'Light', icon: Sun },
-                      { value: 'dark', label: 'Dark', icon: Moon },
+                      { value: 'light', label: 'Light', icon: Sun, isSystem: false },
+                      { value: 'dark', label: 'Dark', icon: Moon, isSystem: false },
                       { value: 'system', label: 'Auto', icon: Monitor, isSystem: true },
                     ] as const).map(({ value, label, icon: Icon, isSystem }) => {
                       const isActive = isSystem

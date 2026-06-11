@@ -6,7 +6,6 @@ import type { Task } from '../lib/types';
 
 interface BentoSidebarProps {
   tasks: Task[];
-  calendarEventCount: number;
   conflictCount: number;
   isLoading?: boolean;
   onQuickAdd: (title: string) => void;
@@ -242,7 +241,6 @@ function TaskPreview({ task, onClick }: { task: Task; onClick: () => void }) {
 
 export function BentoSidebar({
   tasks,
-  calendarEventCount,
   conflictCount,
   isLoading,
   onQuickAdd,
