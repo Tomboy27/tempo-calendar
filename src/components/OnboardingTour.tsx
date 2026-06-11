@@ -59,15 +59,17 @@ export function OnboardingTour({ forceOpen, onComplete }: OnboardingTourProps) {
   });
   const [stepIndex, setStepIndex] = useState(0);
 
-  // Sync open state when forceOpen changes after mount
-  useEffect(() => {
+  // Sync open state when forceOpen changes after mount.
+  // Update a ref and setState during render — the canonical React 19
+  // "derived state from prop" pattern. Lint-safe: not in useEffect.
+  const prevForceOpenRef = useRef(forceOpen);
+  if (forceOpen !== prevForceOpenRef.current) {
+    prevForceOpenRef.current = forceOpen;
     if (forceOpen) {
       setOpen(true);
       setStepIndex(0);
     }
-    // This is the canonical "sync external prop -> state" pattern; the setState is intentional.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-  }, [forceOpen]);
+  }
 
   const finish = useCallback(() => {
     try { localStorage.setItem(STORAGE_KEY, 'true'); } catch { /* ignore */ }
