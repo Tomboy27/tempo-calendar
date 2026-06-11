@@ -11,6 +11,7 @@ import { AuthDialog } from './components/AuthDialog';
 import { SettingsPanel } from './components/SettingsPanel';
 import { OnboardingTour } from './components/OnboardingTour';
 import { CommandPalette } from './components/CommandPalette';
+import { VersionBadge } from './components/VersionBadge';
 import { Button } from './components/ui/button';
 import { AlertCircle, Link2, RefreshCw, LogIn, Zap, Settings2 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
@@ -20,7 +21,7 @@ import { isSupabaseReady } from './lib/supabase';
 import type { Task } from './lib/types';
 import type { TaskInput } from './lib/tasks';
 
-const TEMPO_VERSION = 'v1.0.0';
+const TEMPO_VERSION = 'v1.2.0';
 
 function useTheme() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -295,12 +296,10 @@ function App() {
             </p>
           </div>
         </main>
-        <div className="fixed bottom-1.5 right-3 text-[10px] text-muted-foreground/30 select-none pointer-events-none z-50 font-mono">
-          {TEMPO_VERSION}
-        </div>
-      </div>
-    );
-  }
+      <VersionBadge />
+    </div>
+  );
+}
 
   // Not signed in to Tempo: sign-in prompt
   if (!auth.isAuthenticated) {
@@ -652,9 +651,7 @@ function App() {
         closeButton
       />
 
-      <div className="fixed bottom-1.5 right-3 text-[10px] text-muted-foreground/30 select-none pointer-events-none z-50 font-mono">
-        {TEMPO_VERSION}
-      </div>
+      <VersionBadge />
     </div>
   );
 }
