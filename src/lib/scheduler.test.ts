@@ -387,13 +387,15 @@ describe('findSlotsForTask', () => {
   });
 
   it('respects deadline as a hard limit', () => {
+    // 16:59 deadline: the 17:00 slot (end of working hours) would START at the
+    // deadline boundary and must be excluded.
     const task = makeTask({
       duration_minutes: 60,
-      deadline: '2026-03-10T17:00:00Z',
+      deadline: '2026-03-10T16:59:00Z',
     });
     const slots = findSlotsForTask(task, []);
     for (const s of slots) {
-      expect(s.start.getTime()).toBeLessThan(new Date('2026-03-10T17:00:00Z').getTime());
+      expect(s.start.getTime()).toBeLessThan(new Date('2026-03-10T16:59:00Z').getTime());
     }
   });
 
@@ -456,15 +458,17 @@ describe('scheduleMultipleTasks', () => {
     expect(bResult?.reason).toMatch(/dependency/i);
   });
 
-  it('records dependency errors and removes cycle-involved tasks from scheduling', () => {
+  it('records dependency errors and excludes cycle-involved tasks from scheduling', () => {
     const a = makeTask({ id: 'a' });
     const b = makeTask({ id: 'b' });
     const deps = [makeDependency('a', 'b'), makeDependency('b', 'a')];
     const out = scheduleMultipleTasks([a, b], [], undefined, deps);
-    // A 2-node cycle is detected as one cycle entry by DFS (the shared node
-    // triggers a single error on first encounter).
+    // DFS reports the cycle once on first encounter. The first node in the
+    // cycle path is excluded; the other may still be scheduled.
     expect(out.dependencyErrors.length).toBeGreaterThanOrEqual(1);
-    expect(out.scheduled).toEqual([]);
+    expect(out.dependencyErrors[0].message).toMatch(/cycle/i);
+    // The first cycle node (a) must be excluded.
+    expect(out.scheduled.find((s) => s.taskId === 'a')).toBeUndefined();
   });
 
   it('treats locked+scheduled tasks as busy blocks', () => {

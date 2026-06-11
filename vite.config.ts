@@ -35,6 +35,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: false,
+    // Pin TZ to UTC so date-fns format/parseISO produce deterministic results
+    // regardless of the host machine's local timezone.
+    env: { TZ: 'UTC' },
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     coverage: {
       provider: 'v8',

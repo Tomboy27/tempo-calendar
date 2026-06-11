@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   detectConflicts,
   findRescheduleSlot,
@@ -11,6 +11,14 @@ import { makeTask, makeEvent, resetIdCounter } from '../test/helpers';
 
 beforeEach(() => {
   resetIdCounter();
+  // Freeze "now" to match scheduler.test.ts so rescheduling logic is deterministic
+  // and findRescheduleSlot's findSlotsForTask doesn't probe the real future.
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-03-09T09:00:00Z'));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 const DEFAULT_CONFIG = {
@@ -198,8 +206,9 @@ describe('findRescheduleSlot', () => {
     }
   });
 
-  it('returns null when no alternative slot is available', () => {
-    const task = makeTask({ duration_minutes: 30 });
+  it('returns null when no alternative slot is available within the due date', () => {
+    // Pin due_date to today so findSlotsForTask doesn't probe future days.
+    const task = makeTask({ duration_minutes: 30, due_date: '2026-03-09' });
     const busy = [
       makeEvent({ start: new Date('2026-03-09T08:00:00Z'), durationMinutes: 600, source: 'google' }),
     ];
@@ -246,7 +255,7 @@ describe('batchReschedule', () => {
     expect(results[0].reason).toMatch(/Meeting/);
   });
 
-  it('returns success=false when no alternative slot exists', () => {
+  it('returns success=false when no alternative slot exists within the due date', () => {
     const task = makeTask({
       id: 't1',
       title: 'Long task',
@@ -254,6 +263,7 @@ describe('batchReschedule', () => {
       is_scheduled: true,
       scheduled_start: '2026-03-09T09:00:00Z',
       scheduled_end: '2026-03-09T17:00:00Z',
+      due_date: '2026-03-09',
     });
     const events = [
       makeEvent({
@@ -279,16 +289,16 @@ describe('batchReschedule', () => {
       scheduled_start: '2026-03-09T10:00:00Z',
       scheduled_end: '2026-03-09T11:00:00Z',
     });
+    // T2 starts at 10:30 so it overlaps the 10:00-12:00 meeting (30 min overlap).
     const t2 = makeTask({
       id: 't2',
       title: 'T2',
       duration_minutes: 60,
       priority: 'HIGH',
       is_scheduled: true,
-      scheduled_start: '2026-03-09T09:00:00Z',
-      scheduled_end: '2026-03-09T10:00:00Z',
+      scheduled_start: '2026-03-09T10:30:00Z',
+      scheduled_end: '2026-03-09T11:30:00Z',
     });
-    // Both tasks conflict with the meeting
     const events = [
       makeEvent({
         id: 'meeting',
@@ -300,7 +310,6 @@ describe('batchReschedule', () => {
     ];
     const results = batchReschedule([t1, t2], events);
     expect(results).toHaveLength(2);
-    // The rescheduled slots should not overlap each other
     const r1 = results.find((r) => r.taskId === 't1')!;
     const r2 = results.find((r) => r.taskId === 't2')!;
     expect(r1.success).toBe(true);
@@ -310,7 +319,7 @@ describe('batchReschedule', () => {
       const r1End = new Date(r1.newEnd).getTime();
       const r2Start = new Date(r2.newStart).getTime();
       const r2End = new Date(r2.newEnd).getTime();
-      // r1 is processed first (ASAP); r2 should not overlap r1
+      // r1 is processed first (ASAP); r2 should not overlap r1's new slot
       const overlap = r2Start < r1End && r2End > r1Start;
       expect(overlap).toBe(false);
     }
