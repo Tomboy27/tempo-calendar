@@ -17,7 +17,6 @@ import {
   Plus,
   Clock,
   AlertTriangle,
-  Zap,
   Calendar,
   CheckCircle2,
   TrendingUp,
@@ -161,10 +160,12 @@ function QuickAdd({ onSubmit, onAdvanced }: { onSubmit: (title: string) => void;
 // ============================================================
 
 function NowCard({ current, upNext, onSelect }: { current: Task | null; upNext: Task | null; onSelect: (t: Task) => void }) {
-  // Tick every 30s so the progress bar + countdown stay fresh
-  const [, setTick] = useState(0);
+  // Track now in state so the progress bar and countdown re-render every 30s.
+  // Reading Date.now() directly in the render body is impure and trips the
+  // react-hooks/purity lint rule.
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 30_000);
+    const id = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
 
@@ -172,74 +173,81 @@ function NowCard({ current, upNext, onSelect }: { current: Task | null; upNext: 
     const start = parseISO(current.scheduled_start!);
     const end = parseISO(current.scheduled_end!);
     const total = end.getTime() - start.getTime();
-    const elapsed = Math.max(0, Math.min(total, Date.now() - start.getTime()));
+    const elapsed = Math.max(0, Math.min(total, now - start.getTime()));
     const progressPct = total > 0 ? (elapsed / total) * 100 : 0;
-    const minutesLeft = Math.max(0, differenceInMinutes(end, new Date()));
+    const minutesLeft = Math.max(0, differenceInMinutes(end, new Date(now)));
 
     return (
-      <BentoCard
-        variant="primary"
-        className="cursor-pointer hover:border-primary/40 transition-colors"
+      <button
+        type="button"
+        onClick={() => onSelect(current)}
+        className="relative overflow-hidden rounded-xl border p-3 transition-all text-left w-full bg-primary/5 border-primary/20 hover:border-primary/40 cursor-pointer"
+        aria-label={`Current task: ${current.title}, ${minutesLeft} minutes left`}
       >
-        <div onClick={() => onSelect(current)}>
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-              </span>
-              Now
-            </div>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground tabular-nums">
-              {minutesLeft > 0 ? `${minutesLeft}m left` : 'Wrapping up'}
+        <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
             </span>
+            Now
           </div>
-          <div className="text-sm font-semibold text-foreground leading-snug line-clamp-2">
-            {current.title}
-          </div>
-          <div className="mt-2 text-[11px] text-muted-foreground tabular-nums">
-            {format(start, 'h:mm a')} – {format(end, 'h:mm a')}
-          </div>
-          {/* Progress bar */}
-          <div className="mt-2 h-1 rounded-full bg-primary/10 overflow-hidden">
-            <div
-              className="h-full bg-primary rounded-full transition-all duration-1000 ease-linear"
-              style={{ width: `${progressPct}%` }}
-            />
-          </div>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground tabular-nums">
+            {minutesLeft > 0 ? `${minutesLeft}m left` : 'Wrapping up'}
+          </span>
         </div>
-      </BentoCard>
+        <div className="text-sm font-semibold text-foreground leading-snug line-clamp-2">
+          {current.title}
+        </div>
+        <div className="mt-2 text-[11px] text-muted-foreground tabular-nums">
+          {format(start, 'h:mm a')} – {format(end, 'h:mm a')}
+        </div>
+        {/* Progress bar with ARIA semantics */}
+        <div
+          className="mt-2 h-1 rounded-full bg-primary/10 overflow-hidden"
+          role="progressbar"
+          aria-valuenow={Math.round(progressPct)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Time elapsed in current task"
+        >
+          <div
+            className="h-full bg-primary rounded-full transition-all duration-1000 ease-linear"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      </button>
     );
   }
 
   // Fallback: show up next
   if (upNext) {
     const start = upNext.scheduled_start ? parseISO(upNext.scheduled_start) : null;
-    const minutesUntil = start ? differenceInMinutes(start, new Date()) : null;
+    const minutesUntil = start ? differenceInMinutes(start, new Date(now)) : null;
 
     return (
-      <BentoCard
-        variant="default"
-        className="cursor-pointer hover:border-muted-foreground/40 transition-colors"
+      <button
+        type="button"
+        onClick={() => onSelect(upNext)}
+        className="relative overflow-hidden rounded-xl border p-3 transition-all text-left w-full bg-card border-border hover:border-muted-foreground/40 cursor-pointer"
+        aria-label={`Up next: ${upNext.title}`}
       >
-        <div onClick={() => onSelect(upNext)}>
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-            <Clock className="w-3 h-3" />
-            {minutesUntil !== null && minutesUntil > 0
-              ? `Up next · in ${minutesUntil < 60 ? `${minutesUntil}m` : `${Math.floor(minutesUntil / 60)}h ${minutesUntil % 60}m`}`
-              : 'Up next'}
-          </div>
-          <div className="text-sm font-semibold text-foreground leading-snug line-clamp-2">
-            {upNext.title}
-          </div>
-          {start && (
-            <div className="mt-1 text-[11px] text-muted-foreground tabular-nums">
-              {format(start, 'h:mm a')}
-              {upNext.scheduled_end && ` – ${format(parseISO(upNext.scheduled_end), 'h:mm a')}`}
-            </div>
-          )}
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+          <Clock className="w-3 h-3" />
+          {minutesUntil !== null && minutesUntil > 0
+            ? `Up next · in ${minutesUntil < 60 ? `${minutesUntil}m` : `${Math.floor(minutesUntil / 60)}h ${minutesUntil % 60}m`}`
+            : 'Up next'}
         </div>
-      </BentoCard>
+        <div className="text-sm font-semibold text-foreground leading-snug line-clamp-2">
+          {upNext.title}
+        </div>
+        {start && (
+          <div className="mt-1 text-[11px] text-muted-foreground tabular-nums">
+            {format(start, 'h:mm a')}
+            {upNext.scheduled_end && ` – ${format(parseISO(upNext.scheduled_end), 'h:mm a')}`}
+          </div>
+        )}
+      </button>
     );
   }
 
@@ -322,11 +330,6 @@ function StreakCard({ streak }: { streak: number }) {
           {isAlive ? 'Current streak' : 'No streak yet'}
         </div>
       </div>
-      {isAlive && (
-        <div className="text-[10px] text-muted-foreground tabular-nums shrink-0">
-          {streak >= 7 ? '🔥' : streak >= 3 ? '↑' : '·'}
-        </div>
-      )}
     </BentoCard>
   );
 }
