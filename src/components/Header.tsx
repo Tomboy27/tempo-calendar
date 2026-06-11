@@ -1,4 +1,4 @@
-import { Calendar, RefreshCw, Link2, Unlink, ChevronDown, LogOut, User, Sun, Moon } from 'lucide-react';
+import { Calendar, RefreshCw, Link2, Unlink, ChevronDown, LogOut, User, Sun, Moon, Settings as SettingsIcon } from 'lucide-react';
 import { Button } from './ui/button';
 import { useState } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -20,12 +20,13 @@ interface HeaderProps {
   onSignOut: () => Promise<void>;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  onOpenSettings: () => void;
 }
 
 export function Header({
   activeView, onViewChange, isAuthenticated, isLoaded, isLoading,
   error, onConnect, onDisconnect, onRefresh, onScheduleAll, unscheduledCount,
-  user, onSignIn, onSignOut, theme, onToggleTheme,
+  user, onSignIn, onSignOut, theme, onToggleTheme, onOpenSettings,
 }: HeaderProps) {
   const [showAccount, setShowAccount] = useState(false);
 
@@ -87,6 +88,16 @@ export function Header({
             title="Refresh"
           >
             <RefreshCw className="w-4 h-4" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpenSettings}
+            className="h-8 w-8"
+            title="Settings"
+          >
+            <SettingsIcon className="w-4 h-4" />
           </Button>
 
           {/* Account menu */}

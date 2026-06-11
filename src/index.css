@@ -3,50 +3,52 @@
 @custom-variant dark (&:is(.dark *));
 
 /* =============================================
-   Design System Tokens
+   Design System Tokens — Tempo
+   Warm Swiss: precise typography, warm palette,
+   never empty, never cold.
    ============================================= */
 
 :root {
-  /* Surfaces — warm off-white, not cold gray */
+  /* Surfaces — warm cream, not cold white */
   --background: oklch(0.97 0.005 85);
-  --foreground: oklch(0.25 0.02 30);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.25 0.02 30);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.25 0.02 30);
+  --foreground: oklch(0.24 0.02 30);
+  --card: oklch(0.995 0.003 85);
+  --card-foreground: oklch(0.24 0.02 30);
+  --popover: oklch(0.995 0.003 85);
+  --popover-foreground: oklch(0.24 0.02 30);
 
-  /* Brand — warm sienna/terracotta, not generic blue */
-  --primary: oklch(0.5 0.14 35);
+  /* Brand — warm sienna/terracotta */
+  --primary: oklch(0.52 0.14 35);
   --primary-foreground: oklch(0.99 0 0);
 
   /* Secondary — warm sand */
-  --secondary: oklch(0.94 0.01 80);
-  --secondary-foreground: oklch(0.35 0.03 30);
+  --secondary: oklch(0.94 0.012 80);
+  --secondary-foreground: oklch(0.34 0.03 30);
 
   /* Muted — warm gray */
   --muted: oklch(0.94 0.008 85);
-  --muted-foreground: oklch(0.52 0.02 30);
+  --muted-foreground: oklch(0.5 0.022 30);
 
-  /* Accent — warm peach */
-  --accent: oklch(0.92 0.03 75);
-  --accent-foreground: oklch(0.35 0.05 30);
+  /* Accent — soft warm peach */
+  --accent: oklch(0.93 0.025 70);
+  --accent-foreground: oklch(0.32 0.05 30);
 
   /* Status */
-  --destructive: oklch(0.58 0.22 25);
+  --destructive: oklch(0.58 0.21 25);
   --destructive-foreground: oklch(0.99 0 0);
   --success: oklch(0.55 0.15 155);
-  --warning: oklch(0.7 0.15 75);
+  --warning: oklch(0.72 0.15 75);
   --info: oklch(0.55 0.15 250);
   --overdue: oklch(0.6 0.2 30);
 
   /* Borders */
   --border: oklch(0.9 0.008 85);
   --input: oklch(0.93 0.005 85);
-  --ring: oklch(0.5 0.14 35);
+  --ring: oklch(0.52 0.14 35);
 
-  /* Calendar events — warm, not cold */
+  /* Calendar events — warm palette */
   --event-task: oklch(0.88 0.05 35);
-  --event-task-border: oklch(0.5 0.14 35);
+  --event-task-border: oklch(0.52 0.14 35);
   --event-external: oklch(0.94 0.01 85);
   --event-external-border: oklch(0.6 0.02 80);
   --event-locked: oklch(0.93 0.04 155);
@@ -59,65 +61,56 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   /* Radii */
-  --radius: 0.375rem;
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
+  --radius: 0.5rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
 
   /* Shadows */
-  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.04);
-  --shadow-md: 0 2px 8px oklch(0 0 0 / 0.06);
-  --shadow-lg: 0 4px 16px oklch(0 0 0 / 0.08);
-
-  /* Spacing scale */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-}
-
-html {
-  color-scheme: light;
+  --shadow-sm: 0 1px 2px oklch(0.2 0.02 30 / 0.04);
+  --shadow-md: 0 2px 8px oklch(0.2 0.02 30 / 0.05);
+  --shadow-lg: 0 4px 16px oklch(0.2 0.02 30 / 0.06);
+  --shadow-xl: 0 8px 32px oklch(0.2 0.02 30 / 0.08);
 }
 
 .dark {
-  --background: oklch(0.13 0.005 264);
+  --background: oklch(0.16 0.008 264);
   --foreground: oklch(0.93 0.005 247);
-  --card: oklch(0.16 0.005 264);
+  --card: oklch(0.19 0.008 264);
   --card-foreground: oklch(0.93 0.005 247);
-  --popover: oklch(0.16 0.005 264);
+  --popover: oklch(0.19 0.008 264);
   --popover-foreground: oklch(0.93 0.005 247);
-  --primary: oklch(0.65 0.18 25);
-  --primary-foreground: oklch(0.13 0.005 264);
-  --secondary: oklch(0.2 0.008 264);
-  --secondary-foreground: oklch(0.85 0.01 247);
-  --muted: oklch(0.18 0.005 264);
-  --muted-foreground: oklch(0.55 0.01 247);
-  --accent: oklch(0.22 0.015 264);
-  --accent-foreground: oklch(0.9 0.01 247);
-  --destructive: oklch(0.6 0.22 25);
+  --primary: oklch(0.7 0.18 35);
+  --primary-foreground: oklch(0.16 0.008 264);
+  --secondary: oklch(0.22 0.008 264);
+  --secondary-foreground: oklch(0.88 0.01 247);
+  --muted: oklch(0.21 0.005 264);
+  --muted-foreground: oklch(0.6 0.01 247);
+  --accent: oklch(0.25 0.018 264);
+  --accent-foreground: oklch(0.92 0.01 247);
+  --destructive: oklch(0.65 0.22 25);
   --destructive-foreground: oklch(0.99 0 0);
-  --success: oklch(0.6 0.15 155);
-  --warning: oklch(0.75 0.15 75);
-  --info: oklch(0.6 0.15 250);
-  --overdue: oklch(0.65 0.2 30);
-  --border: oklch(0.25 0.008 264);
-  --input: oklch(0.22 0.005 264);
-  --ring: oklch(0.65 0.18 25);
-  --event-task: oklch(0.3 0.08 25);
-  --event-task-border: oklch(0.55 0.18 25);
-  --event-external: oklch(0.25 0.02 250);
+  --success: oklch(0.65 0.15 155);
+  --warning: oklch(0.78 0.15 75);
+  --info: oklch(0.65 0.15 250);
+  --overdue: oklch(0.68 0.2 30);
+  --border: oklch(0.27 0.008 264);
+  --input: oklch(0.24 0.005 264);
+  --ring: oklch(0.7 0.18 35);
+  --event-task: oklch(0.3 0.08 35);
+  --event-task-border: oklch(0.6 0.16 35);
+  --event-external: oklch(0.26 0.02 250);
   --event-external-border: oklch(0.5 0.08 250);
-  --event-locked: oklch(0.25 0.06 155);
-  --event-locked-border: oklch(0.5 0.12 155);
-  --event-overdue: oklch(0.3 0.06 30);
-  --event-overdue-border: oklch(0.55 0.18 30);
+  --event-locked: oklch(0.28 0.06 155);
+  --event-locked-border: oklch(0.55 0.12 155);
+  --event-overdue: oklch(0.3 0.08 30);
+  --event-overdue-border: oklch(0.6 0.18 30);
   --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2);
   --shadow-md: 0 2px 8px oklch(0 0 0 / 0.25);
   --shadow-lg: 0 4px 16px oklch(0 0 0 / 0.3);
+  --shadow-xl: 0 8px 32px oklch(0 0 0 / 0.35);
 }
 
 @theme inline {
@@ -144,21 +137,32 @@ html {
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-event-task: var(--event-task);
+  --color-event-task-border: var(--event-task-border);
+  --color-event-external: var(--event-external);
+  --color-event-external-border: var(--event-external-border);
+  --color-event-locked: var(--event-locked);
+  --color-event-locked-border: var(--event-locked-border);
+  --color-event-overdue: var(--event-overdue);
+  --color-event-overdue-border: var(--event-overdue-border);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
 }
 
 /* =============================================
-   Base Styles
+   Base
    ============================================= */
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
@@ -167,381 +171,61 @@ html {
     margin: 0;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
   }
 }
 
 /* =============================================
-   Scrollbar
+   Custom scrollbar — slim, warm
    ============================================= */
 
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
-
-/* =============================================
-   react-big-calendar - Complete Override
-   ============================================= */
-
-.big-calendar-wrapper {
-  font-family: var(--font-sans);
-  font-size: 13px;
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); background-clip: padding-box; }
 
-.big-calendar-wrapper .rbc-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 0;
-  border: none;
-  background: none;
+/* Class-scoped thinner scrollbar for calendar + sidebar */
+.tempo-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
-
-.big-calendar-wrapper .rbc-toolbar .rbc-toolbar-label {
-  font-weight: 600;
-  font-size: 15px;
-  color: var(--foreground);
-  margin: 0;
-  flex: 1;
-  text-align: left;
-  letter-spacing: -0.01em;
-}
-
-.big-calendar-wrapper .rbc-btn-group {
-  display: flex;
-  gap: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.big-calendar-wrapper .rbc-toolbar button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 500;
-  border: none;
-  border-right: 1px solid var(--border);
-  background: var(--card);
-  color: var(--muted-foreground);
-  cursor: pointer;
-  transition: background 120ms ease-out, color 120ms ease-out, box-shadow 120ms ease-out;
-  font-family: inherit;
-  white-space: nowrap;
-  line-height: 1;
-}
-
-.big-calendar-wrapper .rbc-toolbar button:hover:not(.rbc-active) {
-  background: var(--accent);
-  color: var(--foreground);
-}
-
-.big-calendar-wrapper .rbc-toolbar button.rbc-active {
-  background: var(--primary);
-  color: var(--primary-foreground);
-  box-shadow: 0 1px 3px oklch(0 0 0 / 0.1);
-}
-
-/* View transition sugar */
-.big-calendar-wrapper .rbc-month-view,
-.big-calendar-wrapper .rbc-time-view,
-.big-calendar-wrapper .rbc-agenda-view {
-  animation: fade-in 180ms ease-out;
-}
-
-/* Calendar background — subtle warmth */
-.big-calendar-wrapper .rbc-calendar {
-  background: var(--card);
-  border: none;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  position: relative;
-}
-
-.big-calendar-wrapper .rbc-calendar::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: -1;
-  border-radius: inherit;
-  background: radial-gradient(ellipse at 50% 0%, var(--primary) 0%, transparent 70%);
-  opacity: 0.03;
-}
-
-.big-calendar-wrapper .rbc-header {
-  padding: 8px 6px;
-  font-weight: 500;
-  font-size: 12px;
-  text-transform: none;
-  letter-spacing: 0.01em;
-  color: var(--muted-foreground);
-  background: transparent;
-  border-bottom: 1px solid var(--border);
-  border-left: none;
-  white-space: nowrap;
-}
-
-.big-calendar-wrapper .rbc-header + .rbc-header {
-  border-left: 1px solid var(--border);
-}
-
-.big-calendar-wrapper .rbc-header:first-child {
-  border-left: none;
-}
-
-.big-calendar-wrapper .rbc-today {
-  background: oklch(0.94 0.015 80);
-}
-
-.big-calendar-wrapper .rbc-time-gutter .rbc-timeslot-group {
-  border-bottom: 1px solid var(--border);
-}
-
-.big-calendar-wrapper .rbc-time-gutter .rbc-label {
-  padding: 0 8px;
-  font-size: 11px;
-  color: var(--muted-foreground);
-  font-weight: 400;
-}
-
-.big-calendar-wrapper .rbc-time-view {
-  border: none;
-}
-
-.big-calendar-wrapper .rbc-time-header {
-  border-bottom: 1px solid var(--border);
-}
-
-.big-calendar-wrapper .rbc-time-content {
-  border-top: 1px solid var(--border);
-}
-
-.big-calendar-wrapper .rbc-day-slot .rbc-time-slot {
-  border-top: 1px solid var(--border);
-}
-
-.big-calendar-wrapper .rbc-timeslot-group {
-  border-bottom: 1px solid var(--border);
-  min-height: 48px;
-}
-
-.big-calendar-wrapper .rbc-month-view {
-  border: none;
-  border-top: 1px solid var(--border);
-}
-
-.big-calendar-wrapper .rbc-month-row {
-  border-top: 1px solid var(--border);
-}
-
-.big-calendar-wrapper .rbc-date-cell {
-  padding: 3px 6px;
-  font-size: 12px;
-  color: var(--foreground);
-}
-
-.big-calendar-wrapper .rbc-date-cell.rbc-now {
-  font-weight: 700;
-  color: var(--primary);
-}
-
-.big-calendar-wrapper .rbc-row-bg .rbc-day-bg {
-  border-left: 1px solid var(--border);
-}
-
-.big-calendar-wrapper .rbc-row-bg .rbc-day-bg:first-child {
-  border-left: none;
-}
-
-.big-calendar-wrapper .rbc-row-bg .rbc-off-range-bg {
-  background: var(--muted);
-}
-
-.big-calendar-wrapper .rbc-agenda-view {
-  border: none;
-}
-
-.big-calendar-wrapper .rbc-agenda-table {
-  border: none;
-  border-collapse: collapse;
-}
-
-.big-calendar-wrapper .rbc-agenda-table thead {
-  display: none;
-}
-
-.big-calendar-wrapper .rbc-agenda-table tbody tr {
-  border-bottom: 1px solid var(--border);
-}
-
-.big-calendar-wrapper .rbc-agenda-table tbody tr:hover {
-  background: var(--accent);
-}
-
-.big-calendar-wrapper .rbc-agenda-table td {
-  padding: 6px 10px;
-  font-size: 13px;
-  color: var(--foreground);
-  border: none;
-}
-
-.big-calendar-wrapper .rbc-agenda-time-cell {
-  color: var(--muted-foreground);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-/* Events */
-.big-calendar-wrapper .rbc-event {
-  border: none !important;
-  border-radius: var(--radius-sm);
-  padding: 0;
-  background: transparent;
-  font-family: inherit;
-  border-left: 3px solid transparent;
-  transition: transform 120ms ease-out, box-shadow 120ms ease-out, filter 120ms ease-out;
-  cursor: pointer;
-}
-
-.big-calendar-wrapper .rbc-event:hover {
-  transform: scale(1.02);
-  filter: brightness(1.05);
-  box-shadow: 0 2px 8px oklch(0 0 0 / 0.12);
-  z-index: 10;
-}
-
-.big-calendar-wrapper .rbc-event-content {
-  font-size: 12px;
-  line-height: 1.4;
-  padding: 2px 6px;
-}
-
-.big-calendar-wrapper .rbc-show-more {
-  font-size: 11px;
-  color: var(--primary);
-  font-weight: 500;
-  background: none;
-  border: none;
-  padding: 2px 6px;
-  cursor: pointer;
-}
-
-.big-calendar-wrapper .rbc-show-more:hover {
-  text-decoration: underline;
-}
-
-.big-calendar-wrapper .rbc-selected-cell {
-  background: var(--accent);
-}
-
-.big-calendar-wrapper .rbc-slot-selection {
-  background: var(--primary);
-  opacity: 0.12;
-}
-
-.big-calendar-wrapper .rbc-allday-cell {
-  border-bottom: 1px solid var(--border);
-}
-
-.big-calendar-wrapper .rbc-allday-cell .rbc-event {
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border-radius: var(--radius-sm);
-  padding: 2px 6px;
-  font-size: 11px;
-}
-
-/* Event state classes */
-.big-calendar-wrapper .rbc-event.event-task {
-  background: var(--event-task);
-  border-left-color: var(--event-task-border);
-  color: oklch(0.24 0.04 30);
-}
-
-.big-calendar-wrapper .rbc-event.event-google {
-  background: var(--event-external);
-  border-left-color: var(--event-external-border);
-  color: oklch(0.25 0.02 30);
-}
-
-.big-calendar-wrapper .rbc-event.event-locked {
-  background: var(--event-locked) !important;
-  border-left-color: var(--event-locked-border) !important;
-}
-
-.big-calendar-wrapper .rbc-event.event-missed {
-  background: var(--event-overdue) !important;
-  border-left-color: var(--event-overdue-border) !important;
-}
-
-.big-calendar-wrapper .rbc-event.event-completed {
-  background: transparent !important;
-  border-left-style: dashed !important;
-  border-left-color: var(--muted-foreground) !important;
-  opacity: 0.5;
-}
-
-.big-calendar-wrapper .rbc-event.event-completed .rbc-event-content {
-  text-decoration: line-through;
-  color: var(--muted-foreground);
-}
-
-.big-calendar-wrapper .rbc-event.event-flexible {
-  border-left-style: dashed !important;
-}
-
-/* Current time line */
-.big-calendar-wrapper .rbc-current-time {
-  background: var(--primary);
-  opacity: 0.7;
+.tempo-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border: 1px solid transparent;
+  background-clip: padding-box;
 }
 
 /* =============================================
-   Mobile calendar overrides
+   App gradient — subtle warm wash
    ============================================= */
 
-@media (max-width: 768px) {
-  .big-calendar-wrapper .rbc-toolbar {
-    flex-wrap: wrap;
-  }
+.app-gradient {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, oklch(0.95 0.02 60 / 0.35), transparent),
+    radial-gradient(ellipse 60% 40% at 0% 100%, oklch(0.95 0.015 200 / 0.25), transparent),
+    var(--background);
+}
 
-  .big-calendar-wrapper .rbc-toolbar-label {
-    font-size: 12px;
-    width: 100%;
-    text-align: center;
-  }
-
-  .big-calendar-wrapper .rbc-btn-group button {
-    padding: 3px 6px;
-    font-size: 10px;
-  }
-
-  .big-calendar-wrapper .rbc-header {
-    font-size: 9px;
-    padding: 3px 2px;
-  }
-
-  .big-calendar-wrapper .rbc-date-cell {
-    font-size: 10px;
-    padding: 1px 2px;
-  }
-
-  .big-calendar-wrapper .rbc-agenda-table td {
-    font-size: 10px;
-    padding: 2px 4px;
-  }
-
-  .big-calendar-wrapper .rbc-time-gutter .rbc-label {
-    font-size: 9px;
-  }
+.dark .app-gradient {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, oklch(0.25 0.04 30 / 0.3), transparent),
+    radial-gradient(ellipse 60% 40% at 0% 100%, oklch(0.2 0.03 250 / 0.2), transparent),
+    var(--background);
 }
 
 /* =============================================
@@ -557,53 +241,74 @@ html {
   to { opacity: 0; }
 }
 @keyframes slide-down {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes slide-up {
   from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 0; transform: translateY(-6px); }
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 @keyframes scale-in {
-  from { opacity: 0; transform: scale(0.98); }
+  from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
+}
+@keyframes scale-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.96); }
 }
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
-@keyframes shimmer-slide {
-  from { transform: translate(-100%, 0); }
-  to { transform: translate(100%, 0); }
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.72 0.15 75 / 0.4); }
+  50% { box-shadow: 0 0 0 8px oklch(0.72 0.15 75 / 0); }
 }
-@keyframes spin-around {
-  0% { transform: translateZ(0) rotate(0); }
-  15%, 35% { transform: translateZ(0) rotate(90deg); }
-  65%, 85% { transform: translateZ(0) rotate(270deg); }
-  100% { transform: translateZ(0) rotate(360deg); }
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
 }
-@keyframes background-position-spin {
-  from { background-position: 0% 0%; }
-  to { background-position: 0% 200%; }
+@keyframes confetti-pop {
+  0% { opacity: 0; transform: translateY(0) scale(0.4); }
+  50% { opacity: 1; transform: translateY(-12px) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-24px) scale(0.9); }
+}
+@keyframes number-tick {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
-.animate-fade-in { animation: fade-in 150ms ease-out; }
-.animate-slide-down { animation: slide-down 150ms ease-out; }
-.animate-scale-in { animation: scale-in 120ms ease-out; }
+.animate-fade-in { animation: fade-in 200ms ease-out; }
+.animate-fade-out { animation: fade-out 150ms ease-in; }
+.animate-slide-down { animation: slide-down 180ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.animate-slide-up { animation: slide-up 150ms ease-in; }
+.animate-slide-in-right { animation: slide-in-right 250ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.animate-slide-in-left { animation: slide-in-left 250ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.animate-scale-in { animation: scale-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.animate-scale-out { animation: scale-out 150ms ease-in; }
 .animate-spin { animation: spin 800ms linear infinite; }
-.animate-shimmer-slide { animation: shimmer-slide var(--speed, 3s) ease-in-out infinite alternate; }
-.animate-spin-around { animation: spin-around calc(var(--speed, 3s) * 2) linear infinite; }
-.animate-background-position-spin { animation: background-position-spin 3s linear infinite; }
+.animate-pulse-glow { animation: pulse-glow 1.8s ease-in-out infinite; }
+.animate-confetti-pop { animation: confetti-pop 600ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 
 /* =============================================
-   Dialog overlay
+   Dialog overlay (Radix)
    ============================================= */
+
 .dialog-overlay {
   position: fixed;
   inset: 0;
-  background: oklch(0 0 0 / 0.4);
+  background: oklch(0 0 0 / 0.5);
+  backdrop-filter: blur(4px);
   z-index: 40;
-  animation: fade-in 120ms ease-out;
+  animation: fade-in 150ms ease-out;
 }
 
 .dialog-content {
@@ -612,15 +317,14 @@ html {
   top: 50%;
   z-index: 50;
   width: min(calc(100vw - 2rem), 520px);
-  max-width: 480px;
   max-height: min(85vh, 760px);
   transform: translate(-50%, -50%);
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
   overflow-y: auto;
-  animation: scale-in 120ms ease-out;
+  animation: scale-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @media (max-width: 640px) {
@@ -628,7 +332,6 @@ html {
     top: auto;
     bottom: 0;
     width: 100%;
-    max-width: none;
     max-height: 92dvh;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
@@ -636,12 +339,8 @@ html {
   }
 }
 
-.app-gradient {
-  background: var(--background);
-}
-
 /* =============================================
-   Focus styles
+   Focus
    ============================================= */
 
 :focus-visible {
@@ -651,10 +350,31 @@ html {
 }
 
 /* =============================================
-   Utility classes
+   Utility polish
    ============================================= */
 
-.text-xs { font-size: 12px; line-height: 1.45; }
-.text-sm { font-size: 14px; line-height: 1.55; }
-.text-base { font-size: 15px; line-height: 1.55; }
+.text-balance { text-wrap: balance; }
+.tabular-nums { font-variant-numeric: tabular-nums; }
 
+/* Subtle hover lift for cards */
+.hover-lift {
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 200ms ease-out;
+}
+.hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Subtle row stripes (for lists) */
+.striped > *:nth-child(even) {
+  background: oklch(0.94 0.008 85 / 0.4);
+}
+.dark .striped > *:nth-child(even) {
+  background: oklch(0.21 0.005 264 / 0.4);
+}
+
+/* Sticky z-index for header in workspaces */
+.z-header { z-index: 30; }
+.z-banner { z-index: 25; }
+.z-calendar { z-index: 10; }
+.z-sidebar { z-index: 20; }

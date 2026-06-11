@@ -1,18 +1,23 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useGoogleCalendar } from './hooks/useGoogleCalendar';
 import { useTasks } from './hooks/useTasks';
 import { useAuth } from './hooks/useAuth';
 import { Header } from './components/Header';
-import { BigCalendar, type CalendarEventType } from './components/BigCalendar';
+import { TempoCalendar, type CalendarEventType, type CalendarView } from './components/TempoCalendar';
+import { BentoSidebar } from './components/BentoSidebar';
 import { TaskList } from './components/TaskList';
 import { TaskDialog } from './components/TaskDialog';
 import { AuthDialog } from './components/AuthDialog';
+import { SettingsPanel } from './components/SettingsPanel';
+import { OnboardingTour } from './components/OnboardingTour';
 import { Button } from './components/ui/button';
-import { AlertCircle, Link2, RefreshCw, LogIn, Zap, Settings2 } from 'lucide-react';
+import { AlertCircle, Link2, RefreshCw, LogIn, Zap, Settings2, Sparkles } from 'lucide-react';
 import { detectConflicts } from './lib/rescheduler';
 import { isSupabaseReady } from './lib/supabase';
 import type { Task } from './lib/types';
 import type { TaskInput } from './lib/tasks';
+
+const TEMPO_VERSION = 'v1.0.0';
 
 function useTheme() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -24,28 +29,52 @@ function useTheme() {
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    if (theme === 'dark') root.classList.add('dark');
+    else root.classList.remove('dark');
     localStorage.setItem('tempo-theme', theme);
   }, [theme]);
 
-  return { theme, toggleTheme: () => setTheme(t => t === 'dark' ? 'light' : 'dark') };
+  return {
+    theme,
+    toggleTheme: () => setTheme((t) => (t === 'dark' ? 'light' : 'dark')),
+    setTheme: (t: 'light' | 'dark') => setTheme(t),
+  };
+}
+
+interface WorkingHoursState {
+  start: string;
+  end: string;
+}
+
+function useWorkingHours(): [WorkingHoursState, (h: WorkingHoursState) => void] {
+  const [state, setState] = useState<WorkingHoursState>(() => {
+    if (typeof window === 'undefined') return { start: '09:00', end: '17:00' };
+    try {
+      const stored = localStorage.getItem('tempo-working-hours');
+      if (stored) return JSON.parse(stored);
+    } catch { /* ignore */ }
+    return { start: '09:00', end: '17:00' };
+  });
+  useEffect(() => {
+    try { localStorage.setItem('tempo-working-hours', JSON.stringify(state)); } catch { /* ignore */ }
+  }, [state]);
+  return [state, setState];
 }
 
 function App() {
   const auth = useAuth();
   const calendar = useGoogleCalendar();
   const tasksHook = useTasks();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, setTheme } = useTheme();
+  const [workingHours, setWorkingHours] = useWorkingHours();
 
   const [showTaskDialog, setShowTaskDialog] = useState(false);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [activeView, setActiveView] = useState<'calendar' | 'tasks'>('calendar');
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [calendarView, setCalendarView] = useState<CalendarView>('week');
   const didAuthTransitionRef = useRef(auth.isAuthenticated);
 
   const { tasks: allTasks, refresh } = tasksHook;
@@ -72,28 +101,36 @@ function App() {
     return [...googleEvents, ...taskEvents];
   }, [calendar.events, allTasks]);
 
-  const bigCalendarEvents = useMemo<CalendarEventType[]>(() => {
+  const tempoEvents = useMemo<CalendarEventType[]>(() => {
     const now = new Date();
     return allEvents.map((ev) => {
       const originalTask = ev.source === 'task'
-        ? allTasks.find(t => `task-${t.id}` === ev.id)
+        ? allTasks.find((t) => `task-${t.id}` === ev.id)
         : null;
+      const isMissed = originalTask?.status === 'missed' ||
+        (originalTask?.is_scheduled && originalTask?.scheduled_end && new Date(originalTask.scheduled_end) < now);
+      const isCompleted = originalTask?.status === 'completed';
+      const isLocked = originalTask?.is_locked;
+
+      let variant: CalendarEventType['variant'] = 'primary';
+      if (isMissed) variant = 'destructive';
+      else if (isLocked) variant = 'success';
+      else if (ev.source === 'google') variant = 'muted';
+      else variant = 'secondary';
 
       return {
         id: ev.id,
         title: ev.title,
         start: new Date(ev.startTime),
         end: new Date(ev.endTime),
-        variant: ev.source === 'task' ? 'secondary' as const : 'primary' as const,
+        variant,
         data: {
           description: ev.description,
           source: ev.source,
           color: ev.color,
-          is_locked: originalTask?.is_locked ?? false,
-          is_missed: originalTask?.status === 'missed' ||
-            (originalTask?.is_scheduled && originalTask?.scheduled_end && new Date(originalTask.scheduled_end) < now),
-          is_flexible: originalTask?.is_scheduled && !originalTask?.is_locked,
-          is_completed: originalTask?.status === 'completed',
+          is_locked: isLocked,
+          is_missed: isMissed,
+          is_completed: isCompleted,
         },
       };
     });
@@ -106,6 +143,10 @@ function App() {
     } else {
       await tasksHook.create(input);
     }
+  };
+
+  const handleQuickAdd = async (title: string) => {
+    await tasksHook.create({ title, duration_minutes: 30, priority: 'NORMAL' });
   };
 
   const handleEditTask = (task: Task) => {
@@ -127,11 +168,8 @@ function App() {
     return detectConflicts(scheduled, allEvents).length;
   }, [allEvents, calendar.isAuthenticated, allTasks]);
 
-  // Refresh tasks when user transitions from unauthenticated to authenticated
   useEffect(() => {
-    if (auth.isAuthenticated && !didAuthTransitionRef.current) {
-      refresh();
-    }
+    if (auth.isAuthenticated && !didAuthTransitionRef.current) refresh();
     didAuthTransitionRef.current = auth.isAuthenticated;
   }, [auth.isAuthenticated, refresh]);
 
@@ -156,7 +194,7 @@ function App() {
     if (task) handleEditTask(task);
   };
 
-  // Supabase not configured: show configuration error
+  // Supabase not configured: configuration error screen
   if (!isSupabaseReady()) {
     return (
       <div className="min-h-[100dvh] flex flex-col app-gradient">
@@ -177,35 +215,38 @@ function App() {
           onSignOut={async () => {}}
           theme={theme}
           onToggleTheme={toggleTheme}
+          onOpenSettings={() => setShowSettings(true)}
         />
-        <main className="flex-1 grid place-items-center px-6">
-          <div className="w-full max-w-[460px] rounded-xl bg-card p-8 shadow-sm border border-border">
-            <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0 mb-4">
+        <main className="flex-1 grid place-items-center px-6 py-12">
+          <div className="w-full max-w-[460px] rounded-2xl bg-card p-8 shadow-md border border-border">
+            <div className="w-11 h-11 rounded-xl bg-destructive/10 flex items-center justify-center mb-5">
               <Settings2 className="w-5 h-5 text-destructive" />
             </div>
-            <h1 className="text-base font-semibold text-foreground">Configuration Required</h1>
+            <h1 className="text-lg font-semibold text-foreground tracking-tight">Configuration Required</h1>
             <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-              This app needs Supabase environment variables to function. Add these to your Vercel project settings:
+              Tempo needs Supabase environment variables to function. Add these to your Vercel project settings:
             </p>
-            <div className="mt-4 p-3 bg-muted/50 rounded-lg text-xs font-mono text-muted-foreground space-y-1">
+            <div className="mt-4 p-3.5 bg-muted/50 rounded-xl text-[12px] font-mono text-muted-foreground space-y-1.5 border border-border">
               <div>VITE_SUPABASE_URL=https://your-project.supabase.co</div>
               <div>VITE_SUPABASE_ANON_KEY=your-anon-key</div>
             </div>
-            <p className="mt-4 text-xs text-muted-foreground">
+            <p className="mt-4 text-xs text-muted-foreground leading-relaxed">
               Find these in your{' '}
-              <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">Supabase dashboard</a>
+              <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-primary font-medium underline underline-offset-2 hover:text-primary/80">
+                Supabase dashboard
+              </a>
               {' '}→ Project Settings → API.
             </p>
           </div>
         </main>
-        <div className="fixed bottom-1.5 right-3 text-[10px] text-muted-foreground/25 select-none pointer-events-none z-50">
+        <div className="fixed bottom-1.5 right-3 text-[10px] text-muted-foreground/30 select-none pointer-events-none z-50 font-mono">
           {TEMPO_VERSION}
         </div>
       </div>
     );
   }
 
-  // Not signed in to Tempo: show auth prompt
+  // Not signed in to Tempo: sign-in prompt
   if (!auth.isAuthenticated) {
     return (
       <div className="min-h-[100dvh] flex flex-col app-gradient">
@@ -226,27 +267,28 @@ function App() {
           onSignOut={auth.signOut}
           theme={theme}
           onToggleTheme={toggleTheme}
+          onOpenSettings={() => setShowSettings(true)}
         />
-        <main className="flex-1 grid place-items-center px-6">
-          <div className="w-full max-w-[440px] rounded-xl bg-card p-8 shadow-sm">
+        <main className="flex-1 grid place-items-center px-6 py-12">
+          <div className="w-full max-w-[460px] rounded-2xl bg-card p-8 shadow-md border border-border">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center shrink-0">
-                <span className="text-base font-bold text-primary-foreground">T</span>
+              <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-sm">
+                <span className="text-lg font-bold text-primary-foreground tracking-tight">T</span>
               </div>
               <div className="min-w-0">
-                <h1 className="text-base font-semibold text-foreground">Tempo Calendar</h1>
+                <h1 className="text-lg font-semibold text-foreground tracking-tight">Tempo Calendar</h1>
                 <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
-                  Tasks find their own time. Sign in to connect your calendar and we'll handle the rest.
+                  Tasks find their own time. Sign in and we'll handle the rest.
                 </p>
               </div>
             </div>
-            <Button onClick={() => setShowAuthDialog(true)} className="mt-6 w-full gap-2 h-10">
+            <Button onClick={() => setShowAuthDialog(true)} className="mt-6 w-full gap-2 h-10 shadow-sm">
               <LogIn className="w-4 h-4" />
               Sign in to Tempo
             </Button>
-            <div className="mt-6 grid grid-cols-3 gap-3 text-center">
+            <div className="mt-6 grid grid-cols-3 gap-2 text-center">
               {['Auto-schedule', 'Calendar sync', 'Smart recalc'].map((label) => (
-                <div key={label} className="rounded-lg bg-muted/50 px-2 py-2.5 text-xs font-medium text-muted-foreground">
+                <div key={label} className="rounded-lg bg-muted/50 px-2 py-2.5 text-xs font-medium text-muted-foreground border border-border">
                   {label}
                 </div>
               ))}
@@ -254,18 +296,31 @@ function App() {
           </div>
         </main>
         <AuthDialog open={showAuthDialog} onClose={() => setShowAuthDialog(false)} />
+        <SettingsPanel
+          open={showSettings}
+          onClose={() => setShowSettings(false)}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onSetTheme={setTheme}
+          user={auth.user}
+          isGoogleConnected={calendar.isAuthenticated}
+          onDisconnectGoogle={calendar.disconnect}
+          onSignOut={auth.signOut}
+          workingHours={workingHours}
+          onWorkingHoursChange={setWorkingHours}
+        />
       </div>
     );
   }
 
-  // Unauthenticated Google: clean setup screen
+  // Not authenticated with Google: connect calendar screen
   if (!calendar.isAuthenticated) {
     if (!calendar.isLoaded || calendar.isLoading) {
       return (
         <div className="min-h-[100dvh] flex items-center justify-center app-gradient">
-          <div className="flex items-center gap-2 text-muted-foreground">
+          <div className="flex items-center gap-2.5 text-muted-foreground">
             <div className="w-4 h-4 border-2 border-border border-t-primary rounded-full animate-spin" />
-            <span className="text-sm">Loading</span>
+            <span className="text-sm font-medium">Loading</span>
           </div>
         </div>
       );
@@ -290,27 +345,28 @@ function App() {
           onSignOut={auth.signOut}
           theme={theme}
           onToggleTheme={toggleTheme}
+          onOpenSettings={() => setShowSettings(true)}
         />
-        <main className="flex-1 grid place-items-center px-6">
-          <div className="w-full max-w-[440px] rounded-xl bg-card p-8 shadow-sm">
+        <main className="flex-1 grid place-items-center px-6 py-12">
+          <div className="w-full max-w-[460px] rounded-2xl bg-card p-8 shadow-md border border-border">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center shrink-0">
-                <span className="text-base font-bold text-primary-foreground">T</span>
+              <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-sm">
+                <span className="text-lg font-bold text-primary-foreground tracking-tight">T</span>
               </div>
               <div className="min-w-0">
-                <h1 className="text-base font-semibold text-foreground">Tempo Calendar</h1>
+                <h1 className="text-lg font-semibold text-foreground tracking-tight">Tempo Calendar</h1>
                 <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
-                  Tasks find their own time. Connect your calendar and we’ll handle the rest.
+                  Tasks find their own time. Connect your calendar and we'll handle the rest.
                 </p>
               </div>
             </div>
-            <Button onClick={calendar.connect} disabled={calendar.isLoading} className="mt-6 w-full gap-2 h-10">
+            <Button onClick={calendar.connect} disabled={calendar.isLoading} className="mt-6 w-full gap-2 h-10 shadow-sm">
               <Link2 className="w-4 h-4" />
               {calendar.isLoading ? 'Connecting...' : 'Connect Google Calendar'}
             </Button>
-            <div className="mt-6 grid grid-cols-3 gap-3 text-center">
+            <div className="mt-6 grid grid-cols-3 gap-2 text-center">
               {['Import events', 'Find space', 'Sync tasks'].map((label) => (
-                <div key={label} className="rounded-lg bg-muted/50 px-2 py-2.5 text-xs font-medium text-muted-foreground">
+                <div key={label} className="rounded-lg bg-muted/50 px-2 py-2.5 text-xs font-medium text-muted-foreground border border-border">
                   {label}
                 </div>
               ))}
@@ -323,11 +379,24 @@ function App() {
             )}
           </div>
         </main>
+        <SettingsPanel
+          open={showSettings}
+          onClose={() => setShowSettings(false)}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onSetTheme={setTheme}
+          user={auth.user}
+          isGoogleConnected={false}
+          onDisconnectGoogle={() => {}}
+          onSignOut={auth.signOut}
+          workingHours={workingHours}
+          onWorkingHoursChange={setWorkingHours}
+        />
       </div>
     );
   }
 
-  // Authenticated: calendar workspace + task sidebar
+  // Authenticated: full workspace
   return (
     <div className="h-[100dvh] flex flex-col app-gradient">
       <Header
@@ -347,34 +416,45 @@ function App() {
         onSignOut={auth.signOut}
         theme={theme}
         onToggleTheme={toggleTheme}
+        onOpenSettings={() => setShowSettings(true)}
       />
 
       {/* Error banners */}
       {calendar.error && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-destructive/5 border-b border-destructive/20 text-xs text-destructive">
-          <AlertCircle className="w-3 h-3 shrink-0" />
+        <div className="flex items-center gap-2 px-4 py-2 bg-destructive/5 border-b border-destructive/20 text-sm text-destructive">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           {calendar.error}
         </div>
       )}
 
       {tasksHook.error && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-destructive/5 border-b border-destructive/20 text-xs text-destructive">
-          <AlertCircle className="w-3 h-3 shrink-0" />
+        <div className="flex items-center gap-2 px-4 py-2 bg-destructive/5 border-b border-destructive/20 text-sm text-destructive">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           {tasksHook.error}
         </div>
       )}
 
       {/* Smart recalc banner */}
       {conflictCount > 0 && (
-        <div className="flex items-center gap-3 px-4 py-2.5 bg-warning/5 border-b border-warning/20">
-          <Zap className="w-4 h-4 text-warning shrink-0" />
-          <span className="text-sm text-warning font-medium">
-            {conflictCount} scheduling {conflictCount === 1 ? 'conflict' : 'conflicts'} detected
-          </span>
+        <div
+          data-onboarding="conflict-banner"
+          className="flex items-center gap-3 px-4 py-2.5 bg-warning/5 border-b border-warning/20 animate-slide-down"
+        >
+          <div className="w-7 h-7 rounded-lg bg-warning/15 flex items-center justify-center shrink-0">
+            <Zap className="w-3.5 h-3.5 text-warning" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="text-sm text-warning font-semibold">
+              {conflictCount} scheduling {conflictCount === 1 ? 'conflict' : 'conflicts'} detected
+            </span>
+            <p className="text-xs text-muted-foreground leading-snug">
+              We can rebuild a clean plan in one click.
+            </p>
+          </div>
           <button
             onClick={handleReschedule}
             disabled={rescheduleLoading}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-warning/10 px-3 py-1.5 text-sm font-medium text-warning hover:bg-warning/20 disabled:opacity-60 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-warning px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-warning/90 disabled:opacity-60 transition-colors shadow-sm"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${rescheduleLoading ? 'animate-spin' : ''}`} />
             Recalculate
@@ -382,63 +462,78 @@ function App() {
         </div>
       )}
 
-      <div className="flex items-center gap-4 border-b border-border bg-card/70 px-4 py-2.5 text-sm text-muted-foreground">
-        <span><strong className="font-semibold text-foreground">{unscheduledCount}</strong> unscheduled</span>
-        <span><strong className="font-semibold text-foreground">{tasksHook.tasks.filter((t) => t.is_scheduled).length}</strong> scheduled</span>
-        <span><strong className="font-semibold text-foreground">{calendar.events.length}</strong> calendar events</span>
-      </div>
-
+      {/* Main workspace */}
       <div className="flex-1 flex overflow-hidden">
         {/* Calendar workspace */}
-        <div className={`flex-1 flex flex-col min-w-0 ${activeView === 'calendar' ? '' : 'hidden lg:flex'}`}>
-          <div className="flex-1 p-3 overflow-hidden">
-            <div className="h-full">
-              <div className="md:hidden h-full">
-                <BigCalendar
-                  events={bigCalendarEvents}
-                  defaultView="day"
-                  onSelectEvent={handleSelectEvent}
-                  onSelectSlot={handleSelectSlot}
-                />
-              </div>
-              <div className="hidden md:block h-full">
-                <BigCalendar
-                  events={bigCalendarEvents}
-                  defaultView="week"
-                  onSelectEvent={handleSelectEvent}
-                  onSelectSlot={handleSelectSlot}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Task sidebar */}
-        <div className={`w-80 lg:w-96 border-l border-border flex flex-col shrink-0 ${activeView === 'tasks' ? '' : 'hidden lg:flex'}`}>
-          <TaskList
-            tasks={tasksHook.tasks}
-            isLoading={tasksHook.isLoading}
-            onAddTask={() => { setEditingTask(null); setShowTaskDialog(true); }}
-            onEditTask={handleEditTask}
-            onDeleteTask={tasksHook.remove}
-            onScheduleAll={handleScheduleAll}
-            onUnschedule={handleUnschedule}
-            onCompleteTask={tasksHook.complete}
-            onReopenTask={tasksHook.reopen}
-            taskLists={tasksHook.taskLists}
+        <div
+          data-onboarding="calendar"
+          className={`flex-1 flex flex-col min-w-0 p-3 gap-3 ${activeView === 'calendar' ? '' : 'hidden lg:flex'}`}
+        >
+          <TempoCalendar
+            events={tempoEvents}
+            defaultView={calendarView}
+            onSelectEvent={handleSelectEvent}
+            onSelectSlot={handleSelectSlot}
+            startHour={parseInt(workingHours.start.split(':')[0], 10)}
+            endHour={parseInt(workingHours.end.split(':')[0], 10) + 2}
+            className="min-h-0"
           />
         </div>
+
+        {/* Sidebar — Bento on calendar view, full TaskList on tasks view */}
+        <div
+          data-onboarding="quick-add"
+          className={`w-80 lg:w-[360px] border-l border-border flex flex-col shrink-0 bg-card ${activeView === 'tasks' ? '' : 'hidden lg:flex'}`}
+        >
+          {activeView === 'calendar' ? (
+            <BentoSidebar
+              tasks={allTasks}
+              calendarEventCount={calendar.events.length}
+              conflictCount={conflictCount}
+              isLoading={tasksHook.isLoading}
+              onQuickAdd={handleQuickAdd}
+              onAddTask={() => { setEditingTask(null); setShowTaskDialog(true); }}
+              onSelectTask={handleEditTask}
+              onViewAllTasks={() => setActiveView('tasks')}
+              onScheduleAll={handleScheduleAll}
+              isScheduling={rescheduleLoading}
+            />
+          ) : (
+            <TaskList
+              tasks={tasksHook.tasks}
+              isLoading={tasksHook.isLoading}
+              onAddTask={() => { setEditingTask(null); setShowTaskDialog(true); }}
+              onEditTask={handleEditTask}
+              onDeleteTask={tasksHook.remove}
+              onScheduleAll={handleScheduleAll}
+              onUnschedule={handleUnschedule}
+              onCompleteTask={tasksHook.complete}
+              onReopenTask={tasksHook.reopen}
+              taskLists={tasksHook.taskLists}
+            />
+          )}
+        </div>
       </div>
 
-      {/* Auth dialog */}
+      {/* Dialogs */}
       <AuthDialog open={showAuthDialog} onClose={() => setShowAuthDialog(false)} />
 
-      {/* Version — inconspicuous */}
-      <div className="fixed bottom-1.5 right-3 text-[10px] text-muted-foreground/25 select-none pointer-events-none z-50">
-        {TEMPO_VERSION}
-      </div>
+      <SettingsPanel
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onSetTheme={setTheme}
+        user={auth.user}
+        isGoogleConnected={calendar.isAuthenticated}
+        onDisconnectGoogle={calendar.disconnect}
+        onSignOut={auth.signOut}
+        workingHours={workingHours}
+        onWorkingHoursChange={setWorkingHours}
+      />
 
-      {/* Task dialog */}
+      <OnboardingTour onComplete={() => { /* persisted in localStorage */ }} />
+
       {showTaskDialog && (
         <TaskDialog
           open={showTaskDialog}
@@ -476,14 +571,13 @@ function App() {
           schedulingProfiles={tasksHook.schedulingProfiles}
         />
       )}
+
+      <div className="fixed bottom-1.5 right-3 text-[10px] text-muted-foreground/30 select-none pointer-events-none z-50 font-mono">
+        {TEMPO_VERSION}
+      </div>
     </div>
   );
 }
 
 export default App;
-
-// Version banner — inconspicuous, bottom-right
-// Increment on each phase completion
-const TEMPO_VERSION = 'v0.2.3';
 export { TEMPO_VERSION };
-
