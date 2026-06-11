@@ -66,8 +66,7 @@ export function OnboardingTour({ forceOpen, onComplete }: OnboardingTourProps) {
       setOpen(true);
       setStepIndex(0);
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-  }, [forceOpen]);
+      }, [forceOpen]);
 
   const finish = useCallback(() => {
     try { localStorage.setItem(STORAGE_KEY, 'true'); } catch { /* ignore */ }

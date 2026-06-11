@@ -147,7 +147,7 @@ interface DayViewProps {
 
 function DayView({ date, events, startHour, endHour, onSelectEvent, onSelectSlot }: DayViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
   const dayEvents = useMemo(() => getEventsForDay(events, date), [events, date]);
   const allDayEvents = useMemo(() => getAllDayEvents(dayEvents), [dayEvents]);
   const timedEvents = useMemo(() => dayEvents.filter((e) => !e.allDay), [dayEvents]);
@@ -315,7 +315,7 @@ interface WeekViewProps {
 
 function WeekView({ date, events, startHour, endHour, onSelectEvent, onSelectSlot }: WeekViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
   const weekStart = useMemo(() => startOfWeek(date, { weekStartsOn: 1 }), [date]);
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 

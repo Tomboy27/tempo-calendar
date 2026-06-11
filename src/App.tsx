@@ -224,7 +224,6 @@ function App() {
           onSignIn={() => {}}
           onSignOut={async () => {}}
           theme={theme}
-          onToggleTheme={toggleTheme}
           onOpenSettings={() => setShowSettings(true)}
         />
         <main className="flex-1 grid place-items-center px-6 py-12">
@@ -276,7 +275,6 @@ function App() {
           onSignIn={() => setShowAuthDialog(true)}
           onSignOut={auth.signOut}
           theme={theme}
-          onToggleTheme={toggleTheme}
           onOpenSettings={() => setShowSettings(true)}
         />
         <main className="flex-1 grid place-items-center px-6 py-12">
@@ -310,7 +308,6 @@ function App() {
           open={showSettings}
           onClose={() => setShowSettings(false)}
           theme={theme}
-          onToggleTheme={toggleTheme}
           onSetTheme={setTheme}
           onUseSystemTheme={useSystemTheme}
           user={auth.user}
@@ -355,7 +352,6 @@ function App() {
           onSignIn={() => setShowAuthDialog(true)}
           onSignOut={auth.signOut}
           theme={theme}
-          onToggleTheme={toggleTheme}
           onOpenSettings={() => setShowSettings(true)}
         />
         <main className="flex-1 grid place-items-center px-6 py-12">
@@ -394,7 +390,6 @@ function App() {
           open={showSettings}
           onClose={() => setShowSettings(false)}
           theme={theme}
-          onToggleTheme={toggleTheme}
           onSetTheme={setTheme}
           onUseSystemTheme={useSystemTheme}
           user={auth.user}
@@ -427,7 +422,6 @@ function App() {
         onSignIn={() => setShowAuthDialog(true)}
         onSignOut={auth.signOut}
         theme={theme}
-        onToggleTheme={toggleTheme}
         onOpenSettings={() => setShowSettings(true)}
       />
 
@@ -533,7 +527,6 @@ function App() {
         open={showSettings}
         onClose={() => setShowSettings(false)}
         theme={theme}
-        onToggleTheme={toggleTheme}
         onSetTheme={setTheme}
           onUseSystemTheme={useSystemTheme}
         user={auth.user}
