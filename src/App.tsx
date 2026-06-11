@@ -156,18 +156,6 @@ function App() {
     if (task) handleEditTask(task);
   };
 
-  const handleEventDrop = async (eventId: string, newStart: Date, newEnd: Date) => {
-    const taskId = eventId.replace('task-', '');
-    try {
-      await tasksHook.update(taskId, {
-        scheduled_start: newStart.toISOString(),
-        scheduled_end: newEnd.toISOString(),
-      });
-    } catch (err) {
-      console.error('[App] Drag reschedule failed:', err);
-    }
-  };
-
   // Supabase not configured: show configuration error
   if (!isSupabaseReady()) {
     return (
@@ -411,7 +399,6 @@ function App() {
                   defaultView="day"
                   onSelectEvent={handleSelectEvent}
                   onSelectSlot={handleSelectSlot}
-                  onEventDrop={handleEventDrop}
                 />
               </div>
               <div className="hidden md:block h-full">
@@ -420,7 +407,6 @@ function App() {
                   defaultView="week"
                   onSelectEvent={handleSelectEvent}
                   onSelectSlot={handleSelectSlot}
-                  onEventDrop={handleEventDrop}
                 />
               </div>
             </div>
@@ -498,6 +484,6 @@ export default App;
 
 // Version banner — inconspicuous, bottom-right
 // Increment on each phase completion
-const TEMPO_VERSION = 'v0.2.1';
+const TEMPO_VERSION = 'v0.2.2';
 export { TEMPO_VERSION };
 

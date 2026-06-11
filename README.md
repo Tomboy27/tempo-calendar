@@ -1,4 +1,4 @@
-# FlowSavvy (Tempo Calendar)
+# Tempo Calendar
 
 A personal scheduling app that auto-schedules tasks into open time slots. Built with React, Vite, TypeScript, Tailwind CSS v4, and Supabase.
 
@@ -155,7 +155,7 @@ supabase/
 
 ## Known Limitations
 
-- Drag-and-drop event resizing is not currently implemented (react-big-calendar DnD addon has Vite ESM compatibility issues)
+- Drag-and-drop event rescheduling is temporarily disabled (react-big-calendar DnD addon has CJS/ESM interop issues with Vite production builds — will be re-added with a custom implementation in a later phase)
 - Google Calendar fetch window is limited to 7 days
 - Recurring tasks are scheduled as individual instances rather than recurring Google Calendar events
 

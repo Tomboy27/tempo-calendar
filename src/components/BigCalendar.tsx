@@ -1,11 +1,7 @@
 import { useMemo, useCallback, type CSSProperties } from 'react';
 import { Calendar, dateFnsLocalizer, Views, type View, type Event } from 'react-big-calendar';
-import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 
 const localizer = dateFnsLocalizer({
   format,
@@ -15,7 +11,9 @@ const localizer = dateFnsLocalizer({
   locales: {},
 });
 
-const DnDCalendar = withDragAndDrop(Calendar);
+// Drag-and-drop temporarily disabled — react-big-calendar's DnD addon has
+// CJS/ESM interop issues with Vite production builds. Will be re-added
+// with a custom implementation in a later phase.
 
 export interface CalendarEventType {
   id: string;
@@ -43,7 +41,6 @@ export function BigCalendar({
   defaultView = Views.WEEK,
   onSelectEvent,
   onSelectSlot,
-  onEventDrop,
   className = '',
   height = '100%',
 }: BigCalendarProps) {
@@ -120,8 +117,7 @@ export function BigCalendar({
 
   return (
     <div className={`big-calendar-wrapper ${className}`}>
-      <DndProvider backend={HTML5Backend}>
-      <DnDCalendar
+      <Calendar
         localizer={localizer}
         events={events as unknown as Event[]}
         startAccessor={(e: Event) => (e as unknown as CalendarEventType).start}
@@ -134,19 +130,6 @@ export function BigCalendar({
         eventPropGetter={eventPropGetter}
         onSelectEvent={handleSelectEvent}
         onSelectSlot={handleSelectSlot}
-        onEventDrop={({ event, start, end }) => {
-          const calEvent = event as unknown as CalendarEventType;
-          if (calEvent.data?.source === 'task') {
-            const isLocked = calEvent.data?.is_locked;
-            if (!isLocked) {
-              onEventDrop?.(calEvent.id, start as Date, end as Date);
-            }
-          }
-        }}
-        draggableAccessor={(event: Event) => {
-          const calEvent = event as unknown as CalendarEventType;
-          return calEvent.data?.source === 'task' && !calEvent.data?.is_locked && !calEvent.data?.is_completed;
-        }}
         selectable
         defaultDate={new Date()}
         min={new Date(1970, 1, 1, 6, 0, 0)}
@@ -154,7 +137,6 @@ export function BigCalendar({
         step={30}
         timeslots={2}
       />
-      </DndProvider>
     </div>
   );
 }

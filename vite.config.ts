@@ -18,6 +18,17 @@ export default defineConfig({
       'react-dnd-html5-backend',
     ],
   },
+  build: {
+    commonjsOptions: {
+      include: [/(node_modules)/],
+      transformMixedEsModules: true,
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
+  },
   server: {
     port: 5173,
     strictPort: false,
