@@ -10,6 +10,14 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  optimizeDeps: {
+    include: [
+      'react-big-calendar',
+      'react-big-calendar/lib/addons/dragAndDrop',
+      'react-dnd',
+      'react-dnd-html5-backend',
+    ],
+  },
   server: {
     port: 5173,
     strictPort: false,
