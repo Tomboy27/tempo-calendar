@@ -433,7 +433,7 @@ function WeekView({ date, events, startHour, endHour, onSelectEvent, onSelectSlo
             {hours.map((h) => (
               <div key={h} className="relative h-14 border-b border-border/40">
                 <span className="absolute top-0 right-3 -translate-y-1/2 text-[10px] font-medium text-muted-foreground bg-card px-1 tabular-nums">
-                  {format(setHours(d, h), 'h a')}
+                  {format(setHours(date, h), 'h a')}
                 </span>
               </div>
             ))}
