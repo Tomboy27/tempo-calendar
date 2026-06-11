@@ -1,6 +1,32 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { format, parseISO, isToday, isTomorrow, differenceInDays, differenceInMinutes, isPast } from 'date-fns';
-import { Plus, Clock, AlertTriangle, Zap, Calendar, CheckCircle2, TrendingUp, Sparkles, ChevronRight } from 'lucide-react';
+import {
+  format,
+  parseISO,
+  isToday,
+  isTomorrow,
+  differenceInDays,
+  differenceInMinutes,
+  isPast,
+  addDays,
+  startOfDay,
+  endOfDay,
+  isWithinInterval,
+  subDays,
+} from 'date-fns';
+import {
+  Plus,
+  Clock,
+  AlertTriangle,
+  Zap,
+  Calendar,
+  CheckCircle2,
+  TrendingUp,
+  Sparkles,
+  ChevronRight,
+  Flame,
+  ArrowUpRight,
+  Sun,
+} from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { Task } from '../lib/types';
 
@@ -131,56 +157,182 @@ function QuickAdd({ onSubmit, onAdvanced }: { onSubmit: (title: string) => void;
 }
 
 // ============================================================
-// UpNext — current/next thing happening
+// NowCard — live "what's happening this hour" with progress
 // ============================================================
 
-function UpNext({ task }: { task: Task | null }) {
-  if (!task) {
+function NowCard({ current, upNext, onSelect }: { current: Task | null; upNext: Task | null; onSelect: (t: Task) => void }) {
+  // Tick every 30s so the progress bar + countdown stay fresh
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (current) {
+    const start = parseISO(current.scheduled_start!);
+    const end = parseISO(current.scheduled_end!);
+    const total = end.getTime() - start.getTime();
+    const elapsed = Math.max(0, Math.min(total, Date.now() - start.getTime()));
+    const progressPct = total > 0 ? (elapsed / total) * 100 : 0;
+    const minutesLeft = Math.max(0, differenceInMinutes(end, new Date()));
+
     return (
-      <div className="text-xs text-muted-foreground leading-relaxed">
-        Nothing on the calendar. Use this space to focus.
-      </div>
+      <BentoCard
+        variant="primary"
+        className="cursor-pointer hover:border-primary/40 transition-colors"
+      >
+        <div onClick={() => onSelect(current)}>
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+              </span>
+              Now
+            </div>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground tabular-nums">
+              {minutesLeft > 0 ? `${minutesLeft}m left` : 'Wrapping up'}
+            </span>
+          </div>
+          <div className="text-sm font-semibold text-foreground leading-snug line-clamp-2">
+            {current.title}
+          </div>
+          <div className="mt-2 text-[11px] text-muted-foreground tabular-nums">
+            {format(start, 'h:mm a')} – {format(end, 'h:mm a')}
+          </div>
+          {/* Progress bar */}
+          <div className="mt-2 h-1 rounded-full bg-primary/10 overflow-hidden">
+            <div
+              className="h-full bg-primary rounded-full transition-all duration-1000 ease-linear"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        </div>
+      </BentoCard>
     );
   }
 
-  const start = task.scheduled_start ? parseISO(task.scheduled_start) : null;
-  const minutesUntil = start ? differenceInMinutes(start, new Date()) : null;
-  const isLive = start && task.scheduled_end && new Date() >= start && new Date() <= parseISO(task.scheduled_end);
+  // Fallback: show up next
+  if (upNext) {
+    const start = upNext.scheduled_start ? parseISO(upNext.scheduled_start) : null;
+    const minutesUntil = start ? differenceInMinutes(start, new Date()) : null;
 
-  return (
-    <div>
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-        {isLive ? (
-          <>
-            <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-            Now
-          </>
-        ) : (
-          <>
+    return (
+      <BentoCard
+        variant="default"
+        className="cursor-pointer hover:border-muted-foreground/40 transition-colors"
+      >
+        <div onClick={() => onSelect(upNext)}>
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
             <Clock className="w-3 h-3" />
             {minutesUntil !== null && minutesUntil > 0
-              ? `In ${minutesUntil < 60 ? `${minutesUntil}m` : `${Math.floor(minutesUntil / 60)}h ${minutesUntil % 60}m`}`
-              : 'Today'}
-          </>
-        )}
-      </div>
-      <div className="text-sm font-semibold text-foreground leading-snug">{task.title}</div>
-      {start && (
-        <div className="mt-1 text-xs text-muted-foreground tabular-nums">
-          {format(start, 'h:mm a')}
-          {task.scheduled_end && ` - ${format(parseISO(task.scheduled_end), 'h:mm a')}`}
-          {' '}
-          <span className="text-foreground/60">·</span>
-          {' '}
-          {task.duration_minutes}m
+              ? `Up next · in ${minutesUntil < 60 ? `${minutesUntil}m` : `${Math.floor(minutesUntil / 60)}h ${minutesUntil % 60}m`}`
+              : 'Up next'}
+          </div>
+          <div className="text-sm font-semibold text-foreground leading-snug line-clamp-2">
+            {upNext.title}
+          </div>
+          {start && (
+            <div className="mt-1 text-[11px] text-muted-foreground tabular-nums">
+              {format(start, 'h:mm a')}
+              {upNext.scheduled_end && ` – ${format(parseISO(upNext.scheduled_end), 'h:mm a')}`}
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </BentoCard>
+    );
+  }
+
+  return (
+    <BentoCard variant="default">
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+        <Sun className="w-3 h-3" />
+        Free hour
+      </div>
+      <div className="text-sm font-medium text-foreground leading-snug">
+        Nothing on the calendar.
+      </div>
+      <div className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+        Use this space to focus, or plan tomorrow below.
+      </div>
+    </BentoCard>
   );
 }
 
 // ============================================================
-// TaskPreview — small task row for the sidebar
+// StreakCard — consecutive completion days
+// ============================================================
+
+/**
+ * Compute the user's current streak: the number of consecutive days,
+ * counting backwards from today, where at least one task was completed.
+ * If today has no completions yet, the streak from yesterday is still
+ * considered "alive" (you haven't broken it until tomorrow).
+ */
+function computeCurrentStreak(tasks: Task[]): number {
+  const dates = new Set<string>();
+  for (const t of tasks) {
+    if (t.completion_history) {
+      for (const d of t.completion_history) {
+        // Accept either ISO datetime or YYYY-MM-DD
+        dates.add(d.length >= 10 ? d.slice(0, 10) : d);
+      }
+    }
+    if (t.completed_at) {
+      dates.add(t.completed_at.slice(0, 10));
+    }
+  }
+  if (dates.size === 0) return 0;
+
+  let cursor = new Date();
+  // If today isn't in the set, start from yesterday (streak still alive)
+  if (!dates.has(format(cursor, 'yyyy-MM-dd'))) {
+    cursor = subDays(cursor, 1);
+  }
+  let streak = 0;
+  while (dates.has(format(cursor, 'yyyy-MM-dd'))) {
+    streak++;
+    cursor = subDays(cursor, 1);
+  }
+  return streak;
+}
+
+function StreakCard({ streak }: { streak: number }) {
+  const isAlive = streak > 0;
+  return (
+    <BentoCard variant={isAlive ? 'success' : 'default'} className="flex items-center gap-3">
+      <div
+        className={cn(
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+          isAlive ? 'bg-warning/15 text-warning' : 'bg-muted text-muted-foreground',
+        )}
+      >
+        <Flame className={cn('h-4 w-4', isAlive && 'fill-warning/30')} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-2xl font-semibold text-foreground tabular-nums leading-none">
+            <NumberTicker value={streak} />
+          </span>
+          <span className="text-xs text-muted-foreground font-medium">
+            {streak === 1 ? 'day' : 'days'}
+          </span>
+        </div>
+        <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {isAlive ? 'Current streak' : 'No streak yet'}
+        </div>
+      </div>
+      {isAlive && (
+        <div className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+          {streak >= 7 ? '🔥' : streak >= 3 ? '↑' : '·'}
+        </div>
+      )}
+    </BentoCard>
+  );
+}
+
+// ============================================================
+// TomorrowPreview — next day's schedule
 // ============================================================
 
 const PRIORITY_DOTS: Record<string, string> = {
@@ -189,6 +341,104 @@ const PRIORITY_DOTS: Record<string, string> = {
   NORMAL: 'bg-muted-foreground/40',
   LOW: 'bg-muted-foreground/20',
 };
+
+function TomorrowPreview({
+  tasks,
+  onSelect,
+  onAddTask,
+}: {
+  tasks: Task[];
+  onSelect: (t: Task) => void;
+  onAddTask: () => void;
+}) {
+  const tomorrow = useMemo(() => addDays(new Date(), 1), []);
+  const tomorrowLabel = format(tomorrow, 'EEEE');
+  const tomorrowShort = format(tomorrow, 'MMM d');
+
+  if (tasks.length === 0) {
+    return (
+      <div className="px-4 py-3 border-b border-border">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <ArrowUpRight className="w-3 h-3" />
+            Tomorrow
+            <span className="text-foreground/40 font-normal normal-case tracking-normal">
+              · {tomorrowShort}
+            </span>
+          </div>
+        </div>
+        <button
+          onClick={onAddTask}
+          className="w-full rounded-lg border border-dashed border-border bg-muted/20 px-3 py-3 text-left text-xs text-muted-foreground hover:bg-muted/40 hover:border-muted-foreground/40 hover:text-foreground transition-colors"
+        >
+          <div className="font-medium text-foreground mb-0.5">Tomorrow is wide open.</div>
+          <div className="leading-relaxed">Plan something to make {tomorrowLabel} count.</div>
+        </button>
+      </div>
+    );
+  }
+
+  const visible = tasks.slice(0, 3);
+  const more = tasks.length - visible.length;
+
+  return (
+    <div className="px-4 py-3 border-b border-border">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <ArrowUpRight className="w-3 h-3" />
+          Tomorrow
+          <span className="text-foreground/40 font-normal normal-case tracking-normal">
+            · {tomorrowLabel} {tomorrowShort}
+          </span>
+        </div>
+        <span className="text-[10px] text-muted-foreground tabular-nums">
+          {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}
+        </span>
+      </div>
+      <div className="space-y-0.5">
+        {visible.map((t) => {
+          const start = t.scheduled_start ? parseISO(t.scheduled_start) : null;
+          return (
+            <button
+              key={t.id}
+              onClick={() => onSelect(t)}
+              className="w-full flex items-center gap-2 py-1.5 px-1 -mx-1 rounded-md hover:bg-accent/40 transition-colors text-left group"
+            >
+              <span
+                className={cn(
+                  'w-1.5 h-1.5 rounded-full shrink-0',
+                  PRIORITY_DOTS[t.priority] || 'bg-muted-foreground/20',
+                )}
+                style={t.color ? { backgroundColor: t.color } : undefined}
+              />
+              {start && (
+                <span className="text-[10px] text-muted-foreground tabular-nums shrink-0 w-12">
+                  {format(start, 'h:mma')}
+                </span>
+              )}
+              <span className="flex-1 min-w-0 text-sm text-foreground truncate font-medium">
+                {t.title}
+              </span>
+              <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
+                {t.duration_minutes}m
+              </span>
+              <ChevronRight className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            </button>
+          );
+        })}
+        {more > 0 && (
+          <div className="text-[10px] text-muted-foreground px-1 pt-0.5">
+            +{more} more
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// TaskPreview — small task row for the sidebar
+// ============================================================
 
 function TaskPreview({ task, onClick }: { task: Task; onClick: () => void }) {
   const due = task.due_date ? parseISO(task.due_date) : null;
@@ -254,19 +504,67 @@ export function BentoSidebar({
   const activeTasks = useMemo(() => tasks.filter((t) => t.status === 'active'), [tasks]);
   const unscheduled = useMemo(() => activeTasks.filter((t) => !t.is_scheduled), [activeTasks]);
   const scheduled = useMemo(() => activeTasks.filter((t) => t.is_scheduled), [activeTasks]);
-  const today = useMemo(() => activeTasks.filter((t) => t.is_scheduled && t.scheduled_start && isToday(parseISO(t.scheduled_start))), [activeTasks]);
-  const overdue = useMemo(() => activeTasks.filter((t) => t.is_scheduled && t.scheduled_end && isPast(parseISO(t.scheduled_end))), [activeTasks]);
+  const today = useMemo(
+    () =>
+      activeTasks.filter(
+        (t) => t.is_scheduled && t.scheduled_start && isToday(parseISO(t.scheduled_start)),
+      ),
+    [activeTasks],
+  );
+  const overdue = useMemo(
+    () =>
+      activeTasks.filter(
+        (t) => t.is_scheduled && t.scheduled_end && isPast(parseISO(t.scheduled_end)),
+      ),
+    [activeTasks],
+  );
 
-  // Up next
-  const upNext = useMemo(() => {
+  // Current task (happening right now) — start <= now <= end
+  const currentTask = useMemo(() => {
     const now = new Date();
-    const upcoming = scheduled
-      .filter((t) => t.scheduled_end && parseISO(t.scheduled_end) > now)
-      .sort((a, b) => (a.scheduled_start || '').localeCompare(b.scheduled_start || ''));
-    return upcoming[0] || null;
+    return (
+      scheduled.find(
+        (t) =>
+          t.scheduled_start &&
+          t.scheduled_end &&
+          parseISO(t.scheduled_start) <= now &&
+          now <= parseISO(t.scheduled_end),
+      ) || null
+    );
   }, [scheduled]);
 
-  // Top 3 unscheduled (priority + due date)
+  // Up next — first scheduled task that hasn't ended yet (and isn't the current one)
+  const upNext = useMemo(() => {
+    const now = new Date();
+    return (
+      scheduled
+        .filter(
+          (t) =>
+            t.scheduled_end &&
+            parseISO(t.scheduled_end) > now &&
+            t.id !== currentTask?.id,
+        )
+        .sort((a, b) => (a.scheduled_start || '').localeCompare(b.scheduled_start || ''))[0] || null
+    );
+  }, [scheduled, currentTask]);
+
+  // Tomorrow's scheduled tasks
+  const tomorrowTasks = useMemo(() => {
+    const tStart = startOfDay(addDays(new Date(), 1));
+    const tEnd = endOfDay(addDays(new Date(), 1));
+    return scheduled
+      .filter(
+        (t) =>
+          t.scheduled_start &&
+          isWithinInterval(parseISO(t.scheduled_start), { start: tStart, end: tEnd }),
+      )
+      .sort((a, b) => (a.scheduled_start || '').localeCompare(b.scheduled_start || ''));
+  }, [scheduled]);
+
+  // Current completion streak
+  const currentStreak = useMemo(() => computeCurrentStreak(tasks), [tasks]);
+
+  // Top 4 unscheduled (priority + due date)
   const topUnscheduled = useMemo(() => {
     const rank: Record<string, number> = { ASAP: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
     return [...unscheduled]
@@ -296,17 +594,14 @@ export function BentoSidebar({
         <QuickAdd onSubmit={onQuickAdd} onAdvanced={onAddTask} />
       </div>
 
+      {/* Now / Up next — featured live card */}
+      <div className="px-4 py-3 border-b border-border">
+        <NowCard current={currentTask} upNext={upNext} onSelect={onSelectTask} />
+      </div>
+
       {/* Bento grid of stats */}
       <div className="px-4 py-3 border-b border-border">
         <div className="grid grid-cols-2 gap-2">
-          <BentoCard variant="primary" className="col-span-2">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary mb-1.5">
-              <Zap className="w-3 h-3" />
-              Up next
-            </div>
-            <UpNext task={upNext} />
-          </BentoCard>
-
           <BentoCard variant={conflictCount > 0 ? 'warning' : 'default'}>
             <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
               <AlertTriangle className={cn('w-3 h-3', conflictCount > 0 && 'text-warning')} />
@@ -349,6 +644,11 @@ export function BentoSidebar({
             </div>
           </BentoCard>
         </div>
+
+        {/* Streak — sits just below the stats, spans full width */}
+        <div className="mt-2">
+          <StreakCard streak={currentStreak} />
+        </div>
       </div>
 
       {/* Today section */}
@@ -378,6 +678,9 @@ export function BentoSidebar({
           </div>
         </div>
       )}
+
+      {/* Tomorrow preview */}
+      <TomorrowPreview tasks={tomorrowTasks} onSelect={onSelectTask} onAddTask={onAddTask} />
 
       {/* Unscheduled section */}
       <div className="flex-1 flex flex-col min-h-0">
