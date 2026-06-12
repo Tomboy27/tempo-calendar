@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Plus, Clock, Calendar, MoreHorizontal, Trash2, ExternalLink, XCircle, AlertTriangle, Check, RotateCcw } from 'lucide-react';
+import { Plus, Clock, Calendar, MoreHorizontal, Trash2, ExternalLink, XCircle, AlertTriangle, Check, RotateCcw, ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
 import type { Task } from '../lib/types';
 import { format, parseISO, isToday, isTomorrow, differenceInDays } from 'date-fns';
@@ -15,6 +15,9 @@ interface TaskListProps {
   onCompleteTask: (id: string) => Promise<void>;
   onReopenTask: (id: string) => Promise<void>;
   taskLists?: { id: string; name: string; color: string }[];
+  /** Switch the workspace back to the calendar view (LeftRail owns nav,
+   *  but this in-context affordance makes returning from tasks easier). */
+  onBackToCalendar?: () => void;
 }
 
 const PRIORITY_DOTS: Record<string, string> = {
@@ -44,7 +47,7 @@ function getUrgencyBadge(task: Task): { label: string; className: string } | nul
 
 export function TaskList({
   tasks, isLoading, onAddTask, onEditTask, onDeleteTask, onScheduleAll, onUnschedule,
-  onCompleteTask, onReopenTask, taskLists = [],
+  onCompleteTask, onReopenTask, taskLists = [], onBackToCalendar,
 }: TaskListProps) {
   const priorityRank: Record<string, number> = { ASAP: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
 
@@ -122,7 +125,19 @@ export function TaskList({
     <div className="flex flex-col h-full">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {onBackToCalendar && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onBackToCalendar}
+              className="h-8 w-8 -ml-1.5 shrink-0"
+              title="Back to calendar"
+              aria-label="Back to calendar"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          )}
           <h2 className="text-sm font-semibold text-foreground">Tasks</h2>
           {unscheduled.length > 0 && (
             <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-md">

@@ -1,20 +1,15 @@
-import { Calendar, RefreshCw, Link2, Unlink, ChevronDown, LogOut, User, Sun, Moon, Settings as SettingsIcon } from 'lucide-react';
+import { Calendar, RefreshCw, Unlink, ChevronDown, LogOut, Sun, Moon, Settings as SettingsIcon } from 'lucide-react';
 import { Button } from './ui/button';
 import { useState } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface HeaderProps {
   isAuthenticated: boolean;
-  isLoaded: boolean;
-  isLoading: boolean;
-  error: string | null;
-  onConnect: () => void;
   onDisconnect: () => void;
   onRefresh: () => void;
   onScheduleAll: () => void;
   unscheduledCount: number;
   user: SupabaseUser | null;
-  onSignIn: () => void;
   onSignOut: () => Promise<void>;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
@@ -22,9 +17,9 @@ interface HeaderProps {
 }
 
 export function Header({
-  isAuthenticated, isLoaded, isLoading,
-  error, onConnect, onDisconnect, onRefresh, onScheduleAll, unscheduledCount,
-  user, onSignIn, onSignOut, theme, onToggleTheme, onOpenSettings,
+  isAuthenticated,
+  onDisconnect, onRefresh, onScheduleAll, unscheduledCount,
+  user, onSignOut, theme, onToggleTheme, onOpenSettings,
 }: HeaderProps) {
   const [showAccount, setShowAccount] = useState(false);
 
@@ -126,31 +121,13 @@ export function Header({
         </div>
       )}
 
-      {/* Not authenticated Google — but signed in to Tempo */}
-      {user && !isAuthenticated && isLoaded && !error && (
-        <Button
-          size="sm"
-          onClick={onConnect}
-          disabled={isLoading}
-          className="h-8 px-4 text-xs gap-2"
-        >
-          <Link2 className="w-3.5 h-3.5" />
-          {isLoading ? 'Connecting...' : 'Connect Google'}
-        </Button>
-      )}
-
-      {/* Not signed in to Tempo */}
-      {!user && (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onSignIn}
-          className="h-8 px-3 text-xs gap-2"
-        >
-          <User className="w-3.5 h-3.5" />
-          Sign in
-        </Button>
-      )}
+      {/* Note: the two unauthenticated branches ("not signed in to Tempo" and
+          "signed in but not connected to Google") used to render a small CTA
+          button here. Each branch now has a prominent primary CTA in the
+          main content area, and the LeftRail is hidden on those branches,
+          so the small Header CTA was redundant. The Header is brand +
+          status only in unauth states; the workspace branch shows the
+          full set of actions below. */}
     </header>
   );
 }

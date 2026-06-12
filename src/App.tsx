@@ -258,16 +258,11 @@ function App() {
       <div className="min-h-[100dvh] flex flex-col app-gradient">
         <Header
           isAuthenticated={false}
-          isLoaded={false}
-          isLoading={false}
-          error={null}
-          onConnect={() => {}}
           onDisconnect={() => {}}
           onRefresh={() => {}}
           onScheduleAll={() => {}}
           unscheduledCount={0}
           user={null}
-          onSignIn={() => {}}
           onSignOut={async () => {}}
           theme={theme}
           onToggleTheme={toggleTheme}
@@ -306,16 +301,11 @@ function App() {
       <div className="min-h-[100dvh] flex flex-col app-gradient">
         <Header
           isAuthenticated={false}
-          isLoaded={calendar.isLoaded}
-          isLoading={calendar.isLoading}
-          error={calendar.error}
-          onConnect={calendar.connect}
           onDisconnect={calendar.disconnect}
           onRefresh={calendar.refreshEvents}
           onScheduleAll={handleScheduleAll}
           unscheduledCount={unscheduledCount}
           user={auth.user}
-          onSignIn={() => setShowAuthDialog(true)}
           onSignOut={auth.signOut}
           theme={theme}
           onToggleTheme={toggleTheme}
@@ -410,16 +400,11 @@ function App() {
       <div className="min-h-[100dvh] flex flex-col app-gradient">
         <Header
           isAuthenticated={false}
-          isLoaded={calendar.isLoaded}
-          isLoading={calendar.isLoading}
-          error={calendar.error}
-          onConnect={calendar.connect}
           onDisconnect={calendar.disconnect}
           onRefresh={calendar.refreshEvents}
           onScheduleAll={handleScheduleAll}
           unscheduledCount={unscheduledCount}
           user={auth.user}
-          onSignIn={() => setShowAuthDialog(true)}
           onSignOut={auth.signOut}
           theme={theme}
           onToggleTheme={toggleTheme}
@@ -529,20 +514,15 @@ function App() {
       <div className="flex-1 flex flex-col min-w-0">
       <Header
         isAuthenticated={calendar.isAuthenticated}
-        isLoaded={calendar.isLoaded}
-        isLoading={calendar.isLoading}
-        error={calendar.error}
-        onConnect={calendar.connect}
         onDisconnect={calendar.disconnect}
         onRefresh={calendar.refreshEvents}
         onScheduleAll={handleScheduleAll}
         unscheduledCount={unscheduledCount}
         user={auth.user}
-        onSignIn={() => setShowAuthDialog(true)}
         onSignOut={auth.signOut}
         theme={theme}
         onToggleTheme={toggleTheme}
-          onOpenSettings={() => setShowSettings(true)}
+        onOpenSettings={() => setShowSettings(true)}
       />
 
       {/* Error banners */}
@@ -636,6 +616,7 @@ function App() {
               onCompleteTask={tasksHook.complete}
               onReopenTask={tasksHook.reopen}
               taskLists={tasksHook.taskLists}
+              onBackToCalendar={() => setActiveView('calendar')}
             />
           )}
         </div>
