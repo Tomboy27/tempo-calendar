@@ -202,27 +202,51 @@ export function requestAccessToken(): Promise<string> {
     // Failsafe: if the GIS callback never fires (popup closed, blocked, etc.)
     // we reject so the UI can leave the loading state.
     const timeoutId = setTimeout(() => {
-      console.warn('[Google] Consent popup timed out after 15s');
+      console.warn('[Google] Consent flow timed out after 15s');
       settle(() => reject(new GoogleAuthError('TIMEOUT', 'Google sign-in timed out. Please try again.')));
     }, 15_000);
+
+    // FedCM (Federated Credential Management) is Chrome 131+'s replacement
+    // for the third-party-cookie-dependent popup flow. It uses a browser-
+    // native dialog instead of a popup window, so it works regardless of:
+    //   - Third-party cookie settings (Tracking Protection)
+    //   - Popup blockers (browser or extension)
+    //   - Browser policies that block popups
+    //
+    // GIS's `itp_support: true` enables FedCM mode automatically when the
+    // browser supports it (the `IdentityCredential` global). In other
+    // browsers it falls back to the standard popup flow.
+    const isFedCmSupported =
+      typeof window !== 'undefined' && 'IdentityCredential' in window;
+    if (isFedCmSupported) {
+      console.log('[Google] Using FedCM (browser-native sign-in dialog)');
+    } else {
+      console.log('[Google] Using popup-based sign-in (FedCM not supported)');
+    }
 
     const client = google.accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: SCOPES,
+      // Enable ITP/FedCM support when available. Conditional spread keeps
+      // the config object clean in browsers where FedCM isn't supported
+      // (avoids passing `itp_support: false`, which is a no-op but noisy).
+      ...(isFedCmSupported ? { itp_support: true } : {}),
       callback: (response: google.accounts.oauth2.TokenResponse) => {
         if (response.error) {
           console.error('[Google] Auth error:', response.error, response.error_subtype, response.error_description);
           settle(() => reject(new GoogleAuthError('OTHER', response.error_description || response.error || 'Unknown Google sign-in error')));
           return;
         }
-        console.log('[Google] Token obtained via consent popup');
+        console.log('[Google] Token obtained via consent flow');
         persistToken(response.access_token, response.expires_in || 3600);
         settle(() => resolve(response.access_token));
       },
       error_callback: (err) => {
-        console.warn('[Google] Popup error callback fired:', err);
+        console.warn('[Google] Sign-in error callback fired:', err);
         // GIS error types: 'popup_closed' | 'popup_failed_to_open' |
-        // 'unknown_risk_level' | 'access_denied' | 'immediate_failed'
+        // 'unknown_risk_level' | 'access_denied' | 'immediate_failed' |
+        // (FedCM mode) 'fedcm_failed' | 'fedcm_account_not_selected' |
+        // 'fedcm_user_card_closed' | etc.
         // The `type` field is the most reliable signal; `message` varies
         // across browsers and is sometimes empty.
         const errType = (err as { type?: string })?.type || '';
@@ -243,6 +267,12 @@ export function requestAccessToken(): Promise<string> {
         } else if (errType === 'unknown_risk_level') {
           code = 'UNKNOWN_RISK_LEVEL';
           message = 'Google blocked the sign-in for security reasons. Try again from a normal browser window (not an iframe or embedded view).';
+        } else if (/fedcm/i.test(errType) || /fedcm/i.test(errMsg)) {
+          // FedCM-specific errors (Chrome 131+). The browser-native dialog
+          // was shown but the user dismissed it or something else failed.
+          // We surface a generic message; the error is usually transient.
+          code = 'OTHER';
+          message = 'Browser-based sign-in was cancelled or failed. Please try again.';
         } else if (errMsg) {
           message = `Google sign-in failed: ${errMsg}`;
         } else {
