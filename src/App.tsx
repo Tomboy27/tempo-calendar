@@ -13,6 +13,7 @@ import { OnboardingTour } from './components/OnboardingTour';
 import { CommandPalette } from './components/CommandPalette';
 import { VersionBadge } from './components/VersionBadge';
 import { Button } from './components/ui/button';
+import { LeftRail } from './components/LeftRail';
 import { ProductPreviewMock } from './components/ProductPreviewMock';
 import { AlertCircle, Link2, RefreshCw, LogIn, Zap, Settings2, Calendar, Sparkles, ArrowRight, BarChart3, Layers } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
@@ -504,7 +505,27 @@ function App() {
 
   // Authenticated: full workspace
   return (
-    <div className="h-[100dvh] flex flex-col app-gradient">
+    <div className="h-[100dvh] flex app-gradient">
+      <LeftRail
+        activeView={activeView}
+        onViewChange={setActiveView}
+        isAuthenticated={calendar.isAuthenticated}
+        isLoaded={calendar.isLoaded}
+        isLoading={calendar.isLoading}
+        error={calendar.error}
+        onConnect={calendar.connect}
+        onDisconnect={calendar.disconnect}
+        onRefresh={calendar.refreshEvents}
+        onScheduleAll={handleScheduleAll}
+        unscheduledCount={unscheduledCount}
+        user={auth.user}
+        onSignIn={() => setShowAuthDialog(true)}
+        onSignOut={auth.signOut}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onOpenSettings={() => setShowSettings(true)}
+      />
+      <div className="flex-1 flex flex-col min-w-0">
       <Header
         isAuthenticated={calendar.isAuthenticated}
         isLoaded={calendar.isLoaded}
@@ -701,6 +722,7 @@ function App() {
       />
 
       <VersionBadge />
+      </div>
     </div>
   );
 }
