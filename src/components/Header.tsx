@@ -4,8 +4,6 @@ import { useState } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface HeaderProps {
-  activeView: 'calendar' | 'tasks';
-  onViewChange: (view: 'calendar' | 'tasks') => void;
   isAuthenticated: boolean;
   isLoaded: boolean;
   isLoading: boolean;
@@ -24,7 +22,7 @@ interface HeaderProps {
 }
 
 export function Header({
-  activeView, onViewChange, isAuthenticated, isLoaded, isLoading,
+  isAuthenticated, isLoaded, isLoading,
   error, onConnect, onDisconnect, onRefresh, onScheduleAll, unscheduledCount,
   user, onSignIn, onSignOut, theme, onToggleTheme, onOpenSettings,
 }: HeaderProps) {
@@ -39,25 +37,6 @@ export function Header({
         </div>
         <span className="text-sm font-semibold text-foreground tracking-tight hidden sm:inline">Tempo Calendar</span>
       </div>
-
-      {/* Navigation - only when authenticated */}
-      {isAuthenticated && (
-        <div className="flex items-center gap-0.5 bg-muted rounded-lg p-0.5">
-          {(['calendar', 'tasks'] as const).map((view) => (
-            <button
-              key={view}
-              onClick={() => onViewChange(view)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                activeView === view
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {view === 'calendar' ? 'Calendar' : 'Tasks'}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Spacer */}
       <div className="flex-1" />

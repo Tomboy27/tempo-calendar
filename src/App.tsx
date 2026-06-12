@@ -18,7 +18,7 @@ import { Toaster, toast } from 'sonner';
 import { format } from 'date-fns';
 import { detectConflicts } from './lib/rescheduler';
 import { isSupabaseReady } from './lib/supabase';
-import { TEMPO_VERSION } from './lib/version';
+import { } from './lib/version';
 import type { Task } from './lib/types';
 import type { TaskInput } from './lib/tasks';
 
@@ -255,8 +255,6 @@ function App() {
     return (
       <div className="min-h-[100dvh] flex flex-col app-gradient">
         <Header
-          activeView={activeView}
-          onViewChange={setActiveView}
           isAuthenticated={false}
           isLoaded={false}
           isLoading={false}
@@ -305,8 +303,6 @@ function App() {
     return (
       <div className="min-h-[100dvh] flex flex-col app-gradient">
         <Header
-          activeView={activeView}
-          onViewChange={setActiveView}
           isAuthenticated={false}
           isLoaded={calendar.isLoaded}
           isLoading={calendar.isLoading}
@@ -383,8 +379,6 @@ function App() {
     return (
       <div className="min-h-[100dvh] flex flex-col app-gradient">
         <Header
-          activeView={activeView}
-          onViewChange={setActiveView}
           isAuthenticated={false}
           isLoaded={calendar.isLoaded}
           isLoading={calendar.isLoading}
@@ -454,8 +448,6 @@ function App() {
   return (
     <div className="h-[100dvh] flex flex-col app-gradient">
       <Header
-        activeView={activeView}
-        onViewChange={setActiveView}
         isAuthenticated={calendar.isAuthenticated}
         isLoaded={calendar.isLoaded}
         isLoading={calendar.isLoading}
