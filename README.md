@@ -158,7 +158,3 @@ supabase/
 - Drag-and-drop event rescheduling is temporarily disabled (react-big-calendar DnD addon has CJS/ESM interop issues with Vite production builds — will be re-added with a custom implementation in a later phase)
 - Google Calendar fetch window is limited to 7 days
 - Recurring tasks are scheduled as individual instances rather than recurring Google Calendar events
-
-## License
-
-MIT
