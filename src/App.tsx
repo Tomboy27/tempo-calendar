@@ -465,7 +465,11 @@ function App() {
                     <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
                     <p className="text-sm text-destructive text-left leading-relaxed">{calendar.error.message}</p>
                   </div>
-                  {calendar.error.code === 'ORIGIN_NOT_AUTHORIZED' && <OriginNotAuthorizedHelp />}
+                  {calendar.error.code === 'ORIGIN_NOT_AUTHORIZED' && (
+                    // `connect()` already calls setError(null) as its first line,
+                    // so we don't need to disconnect first.
+                    <OriginNotAuthorizedHelp onRecheck={calendar.connect} />
+                  )}
                 </div>
               )}
             </div>
@@ -722,19 +726,22 @@ function App() {
  * the Clipboard API is unavailable) and a direct link to the Google Cloud
  * Console credentials page.
  */
-function OriginNotAuthorizedHelp() {
+function OriginNotAuthorizedHelp({ onRecheck }: { onRecheck?: () => void }) {
   const [copied, setCopied] = useState(false);
   const timeoutRef = useRef<number | null>(null);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  // Show a short prefix so the user can verify they're using the right
+  // Client ID (full ID is sensitive but the prefix + length is enough to
+  // disambiguate multiple Client IDs in the same GCP project).
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  const clientIdPrefix = clientId ? `${clientId.slice(0, 24)}…` : '(not set)';
 
   // Clear any pending reset on unmount so we never call setState after teardown,
   // and cancel any in-flight timer when a new copy happens (avoids the
   // "Copied" label flickering on rapid re-clicks).
   useEffect(() => {
     return () => {
-      if (timeoutRef.current !== null) {
-        window.clearTimeout(timeoutRef.current);
-      }
+      if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
     };
   }, []);
 
@@ -742,51 +749,82 @@ function OriginNotAuthorizedHelp() {
     try {
       await navigator.clipboard.writeText(origin);
       setCopied(true);
-      if (timeoutRef.current !== null) {
-        window.clearTimeout(timeoutRef.current);
-      }
+      if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
       timeoutRef.current = window.setTimeout(() => {
         setCopied(false);
         timeoutRef.current = null;
       }, 2000);
     } catch (err) {
       console.warn('[OriginNotAuthorizedHelp] Copy failed:', err);
-      // Silent — the code chip is still visible so the user can copy manually.
     }
   };
 
+  const handleCopyDiag = () => {
+    const diag = [
+      `Origin: ${origin}`,
+      `Client ID: ${clientId || '(not set)'}`,
+      `URL: ${typeof window !== 'undefined' ? window.location.href : ''}`,
+      `User Agent: ${typeof navigator !== 'undefined' ? navigator.userAgent : ''}`,
+    ].join('\n');
+    // Drop the inline "Copied" state — the console.log + clipboard write is
+    // enough confirmation, and avoids confusing the user with two "Copied"
+    // labels (one for the origin button, one for the diagnostic button).
+    navigator.clipboard.writeText(diag).catch((err) => {
+      console.warn('[OriginNotAuthorizedHelp] Diagnostic copy failed:', err);
+    });
+    // eslint-disable-next-line no-console
+    console.info('[Google OAuth Diagnostic]\n' + diag);
+  };
+
   return (
-    <div className="flex items-center gap-2 flex-wrap pl-6">
-      <button
-        type="button"
-        onClick={handleCopy}
-        aria-label="Copy current origin to clipboard"
-        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent transition-colors"
-      >
-        {copied ? (
-          <>
-            <Check className="w-3 h-3" />
-            Copied
-          </>
-        ) : (
-          <>
-            <Copy className="w-3 h-3" />
-            Copy origin
-          </>
+    <div className="pl-6 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={handleCopy}
+          aria-label="Copy current origin to clipboard"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent transition-colors"
+        >
+          {copied ? <><Check className="w-3 h-3" />Copied</> : <><Copy className="w-3 h-3" />Copy origin</>}
+        </button>
+        {onRecheck && (
+          <button
+            type="button"
+            onClick={onRecheck}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Recheck
+          </button>
         )}
-      </button>
-      <a
-        href="https://console.cloud.google.com/apis/credentials"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground hover:bg-destructive/90 transition-colors"
-      >
-        Open Google Cloud Console
-        <ExternalLink className="w-3 h-3" />
-      </a>
-      <code className="text-[11px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
-        {origin}
-      </code>
+        <button
+          type="button"
+          onClick={handleCopyDiag}
+          aria-label="Copy diagnostic info to clipboard"
+          title="Copies origin, client ID, URL, and user agent. Also logs to the browser console."
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent transition-colors"
+        >
+          <Copy className="w-3 h-3" />
+          Copy diagnostic
+        </button>
+        <a
+          href="https://console.cloud.google.com/apis/credentials"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground hover:bg-destructive/90 transition-colors"
+        >
+          Open Google Cloud Console
+          <ExternalLink className="w-3 h-3" />
+        </a>
+      </div>
+      <div className="flex items-center gap-3 flex-wrap text-[11px] font-mono text-muted-foreground">
+        <span><span className="text-muted-foreground/60">origin:</span> <code className="bg-muted/60 px-1.5 py-0.5 rounded">{origin}</code></span>
+        <span><span className="text-muted-foreground/60">client id:</span> <code className="bg-muted/60 px-1.5 py-0.5 rounded">{clientIdPrefix}</code></span>
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        Note: changes to Authorized JavaScript origins can take <strong>5–60 minutes</strong> to propagate on Google's side.
+        Hard-refresh the page (Ctrl/Cmd+Shift+R) after editing, and verify the origin above exactly matches the one you added in Cloud Console.
+      </p>
     </div>
   );
 }
