@@ -1,5 +1,4 @@
 import { Calendar, Sparkles, Inbox, Flame, Zap } from 'lucide-react';
-import { cn } from '../lib/utils';
 
 /**
  * Illustrated product preview for the unauthenticated landing page.
@@ -65,15 +64,10 @@ export function ProductPreviewMock() {
                   key={i}
                   className="aspect-square rounded-md border border-border/60 bg-card p-1 flex flex-col gap-0.5"
                 >
-                  <div
-                    className={cn(
-                      'text-[9px] font-semibold tabular-nums',
-                      i === 2 ? 'text-primary' : 'text-muted-foreground',
-                    )}
-                  >
-                    {/* highlight middle column to suggest "today" */}
-                    {i === 2 ? '·' : ''}
-                  </div>
+                  {/* "Today" indicator: a small primary dot in the highlighted column. */}
+                  {i === 2 ? (
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary self-start" />
+                  ) : null}
                   {/* Mini events */}
                   {i === 0 && <div className="h-1.5 rounded-sm bg-event-task" />}
                   {i === 1 && <div className="h-1.5 rounded-sm bg-event-task w-3/4" />}
