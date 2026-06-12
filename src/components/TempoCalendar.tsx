@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { DraggableEvent } from './CalendarEvent';
 import { cn } from '../lib/utils';
+import { computeEventDrop } from '../lib/drag';
 
 export type CalendarEventVariant = 'primary' | 'secondary' | 'warning' | 'destructive' | 'success' | 'muted';
 export type CalendarView = 'day' | 'week' | 'month';
@@ -679,23 +680,20 @@ export function TempoCalendar({
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     if (!onEventDrop) return;
     const id = String(event.active.id);
-    const deltaY = event.delta.y;
-    const deltaX = event.delta.x;
-    // Vertical: 56px = 60min, so 1px ≈ 1.07min; round to 15-min slots
-    const minutes = Math.round((deltaY / HOUR_HEIGHT) * 60 / 15) * 15;
-    // Horizontal (week only): dayColumnWidth px = 1 day, round to whole days
-    const dayOffset =
-      view === 'week' && dayColumnWidthRef.current > 0
-        ? Math.round(deltaX / dayColumnWidthRef.current)
-        : 0;
-    if (minutes === 0 && dayOffset === 0) return;
     const ev = events.find((e) => e.id === id);
     if (!ev) return;
-    const duration = ev.end.getTime() - ev.start.getTime();
-    const totalMinutes = minutes + dayOffset * 24 * 60;
-    const newStart = new Date(ev.start.getTime() + totalMinutes * 60_000);
-    const newEnd = new Date(newStart.getTime() + duration);
-    onEventDrop(id, newStart, newEnd);
+    // Pure-function drag math; see src/lib/drag.ts for snapping rules.
+    const result = computeEventDrop({
+      start: ev.start,
+      end: ev.end,
+      deltaX: event.delta.x,
+      deltaY: event.delta.y,
+      hourHeight: HOUR_HEIGHT,
+      dayColumnWidth: dayColumnWidthRef.current,
+      view,
+    });
+    if (!result) return;
+    onEventDrop(id, result.newStart, result.newEnd);
   }, [events, onEventDrop, view]);
 
   const title = useMemo(() => {

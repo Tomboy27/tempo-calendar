@@ -42,7 +42,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: ['src/lib/scheduler.ts', 'src/lib/rescheduler.ts'],
+      include: ['src/lib/scheduler.ts', 'src/lib/rescheduler.ts', 'src/lib/drag.ts'],
     },
   },
 })
