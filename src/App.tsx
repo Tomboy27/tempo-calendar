@@ -728,6 +728,12 @@ function App() {
  */
 function OriginNotAuthorizedHelp({ onRecheck }: { onRecheck?: () => void }) {
   const [copied, setCopied] = useState(false);
+  // Use a ref (not state) so the timestamp can be read synchronously inside
+  // the diagnostic dump without waiting for a re-render after Recheck.
+  // Initialized to 0; set to Date.now() in the mount effect below to avoid
+  // the `react-hooks/purity` lint rule (which flags `Date.now()` in any
+  // hook initializer, even though useRef only consumes the initial value once).
+  const attemptedAtRef = useRef<number>(0);
   const timeoutRef = useRef<number | null>(null);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   // Show a short prefix so the user can verify they're using the right
@@ -736,14 +742,22 @@ function OriginNotAuthorizedHelp({ onRecheck }: { onRecheck?: () => void }) {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
   const clientIdPrefix = clientId ? `${clientId.slice(0, 24)}…` : '(not set)';
 
-  // Clear any pending reset on unmount so we never call setState after teardown,
-  // and cancel any in-flight timer when a new copy happens (avoids the
-  // "Copied" label flickering on rapid re-clicks).
+  // Set the attempt timestamp on mount (replaces the ref initializer so
+  // we don't trigger the purity lint rule), and clean up the copy-state
+  // timer on unmount.
   useEffect(() => {
+    attemptedAtRef.current = Date.now();
     return () => {
       if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
     };
   }, []);
+
+  const handleRecheck = () => {
+    // Update the ref synchronously so the next diagnostic dump reflects the
+    // new attempt time, even if the parent hasn't re-rendered yet.
+    attemptedAtRef.current = Date.now();
+    onRecheck?.();
+  };
 
   const handleCopy = async () => {
     try {
@@ -760,15 +774,24 @@ function OriginNotAuthorizedHelp({ onRecheck }: { onRecheck?: () => void }) {
   };
 
   const handleCopyDiag = () => {
+    const attemptedAt = attemptedAtRef.current;
     const diag = [
+      `Error code: ORIGIN_NOT_AUTHORIZED (GIS popup_failed_to_open)`,
+      `Last attempted at: ${new Date(attemptedAt).toISOString()} (${new Date(attemptedAt).toLocaleString()})`,
       `Origin: ${origin}`,
       `Client ID: ${clientId || '(not set)'}`,
       `URL: ${typeof window !== 'undefined' ? window.location.href : ''}`,
       `User Agent: ${typeof navigator !== 'undefined' ? navigator.userAgent : ''}`,
+      ``,
+      `Verification checklist:`,
+      `  1. In Cloud Console (https://console.cloud.google.com/apis/credentials), find the OAuth Client ID above`,
+      `  2. Open it and confirm "Authorized JavaScript origins" includes EXACTLY: ${origin}`,
+      `  3. Wait 5-60 min if you just added it (Google propagation delay)`,
+      `  4. Hard-refresh this page (Ctrl/Cmd+Shift+R) and click Recheck`,
     ].join('\n');
-    // Drop the inline "Copied" state — the console.log + clipboard write is
-    // enough confirmation, and avoids confusing the user with two "Copied"
-    // labels (one for the origin button, one for the diagnostic button).
+    // Drop the inline "Copied" state on this button — the console.log +
+    // clipboard write is enough confirmation, and avoids confusing the user
+    // with two "Copied" labels (one for the origin button, one for this one).
     navigator.clipboard.writeText(diag).catch((err) => {
       console.warn('[OriginNotAuthorizedHelp] Diagnostic copy failed:', err);
     });
@@ -790,7 +813,7 @@ function OriginNotAuthorizedHelp({ onRecheck }: { onRecheck?: () => void }) {
         {onRecheck && (
           <button
             type="button"
-            onClick={onRecheck}
+            onClick={handleRecheck}
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent transition-colors"
           >
             <RefreshCw className="w-3 h-3" />
