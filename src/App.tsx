@@ -423,39 +423,68 @@ function App() {
           theme={theme}
           onToggleTheme={toggleTheme}
           onOpenSettings={() => setShowSettings(true)}
-        />
-        <main className="flex-1 grid place-items-center px-6 py-12">
-          <div className="w-full max-w-[460px] rounded-2xl bg-card p-8 shadow-md border border-border">
-            <div className="flex items-start gap-4">
-              <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-sm">
-                <span className="text-lg font-bold text-primary-foreground tracking-tight">T</span>
+        />          <main className="flex-1 grid lg:grid-cols-[1.1fr_1fr] gap-8 items-center px-6 lg:px-16 py-10 max-w-[1280px] mx-auto w-full">
+            {/* Left: copy + CTA */}
+            <div className="max-w-[520px]">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wider">
+                <Sparkles className="w-3 h-3" />
+                One last step
               </div>
-              <div className="min-w-0">
-                <h1 className="text-lg font-semibold text-foreground tracking-tight">Tempo Calendar</h1>
-                <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
-                  Tasks find their own time. Connect your calendar and we'll handle the rest.
-                </p>
+              <h1 className="mt-5 text-4xl lg:text-5xl font-semibold text-foreground tracking-tight leading-[1.05]">
+                Connect your calendar.
+              </h1>
+              <p className="mt-5 text-base lg:text-lg text-muted-foreground leading-relaxed">
+                Tempo reads your Google Calendar to find open time. We&rsquo;ll place your tasks where they actually fit.
+              </p>
+
+              {/* Value props */}
+              <ul className="mt-7 space-y-3">
+                {[
+                  { icon: Calendar, title: 'Import events', body: 'Existing meetings show up instantly as busy blocks. Tasks will never overlap them.' },
+                  { icon: Layers, title: 'Find space', body: 'Tempo scans your week for open slots that match your working hours and preferences.' },
+                  { icon: BarChart3, title: 'Sync tasks', body: 'Scheduled tasks push back to Google Calendar. One source of truth, always.' },
+                ].map((p) => (
+                  <li key={p.title} className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <p.icon className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">{p.title}</div>
+                      <div className="text-xs text-muted-foreground leading-relaxed">{p.body}</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-8 flex items-center gap-3 flex-wrap">
+                <Button
+                  onClick={calendar.connect}
+                  disabled={calendar.isLoading}
+                  size="lg"
+                  className="h-12 px-6 gap-2 text-sm font-semibold shadow-sm"
+                >
+                  <Link2 className="w-4 h-4" />
+                  {calendar.isLoading ? 'Connecting…' : 'Connect Google Calendar'}
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Read-only access. You can disconnect anytime.
+                </span>
               </div>
-            </div>
-            <Button onClick={calendar.connect} disabled={calendar.isLoading} className="mt-6 w-full gap-2 h-10 shadow-sm">
-              <Link2 className="w-4 h-4" />
-              {calendar.isLoading ? 'Connecting...' : 'Connect Google Calendar'}
-            </Button>
-            <div className="mt-6 grid grid-cols-3 gap-2 text-center">
-              {['Import events', 'Find space', 'Sync tasks'].map((label) => (
-                <div key={label} className="rounded-lg bg-muted/50 px-2 py-2.5 text-xs font-medium text-muted-foreground border border-border">
-                  {label}
+
+              {calendar.error && (
+                <div className="mt-5 p-3 bg-destructive/5 border border-destructive/20 rounded-lg flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+                  <p className="text-sm text-destructive text-left">{calendar.error}</p>
                 </div>
-              ))}
+              )}
             </div>
-            {calendar.error && (
-              <div className="mt-5 p-3 bg-destructive/5 border border-destructive/20 rounded-lg flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
-                <p className="text-sm text-destructive text-left">{calendar.error}</p>
-              </div>
-            )}
-          </div>
-        </main>
+
+            {/* Right: product preview (desktop only) */}
+            <div className="hidden lg:block">
+              <ProductPreviewMock />
+            </div>
+          </main>
         <SettingsPanel
           open={showSettings}
           onClose={() => setShowSettings(false)}

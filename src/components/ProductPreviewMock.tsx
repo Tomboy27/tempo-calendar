@@ -59,9 +59,10 @@ export function ProductPreviewMock() {
               ))}
             </div>
             <div className="grid grid-cols-7 gap-1">
-              {[1, 2, 3, 4, 5, 6, 7].map((day, i) => (
+              {/* Illustrative: no day numbers — just day-letter header above, mini events below. */}
+              {[0, 1, 2, 3, 4, 5, 6].map((i) => (
                 <div
-                  key={day}
+                  key={i}
                   className="aspect-square rounded-md border border-border/60 bg-card p-1 flex flex-col gap-0.5"
                 >
                   <div
@@ -70,7 +71,8 @@ export function ProductPreviewMock() {
                       i === 2 ? 'text-primary' : 'text-muted-foreground',
                     )}
                   >
-                    {day}
+                    {/* highlight middle column to suggest "today" */}
+                    {i === 2 ? '·' : ''}
                   </div>
                   {/* Mini events */}
                   {i === 0 && <div className="h-1.5 rounded-sm bg-event-task" />}
@@ -149,8 +151,8 @@ export function ProductPreviewMock() {
         </div>
       </div>
 
-      {/* Floating accent: smart-recalc banner */}
-      <div className="absolute -bottom-4 -left-4 rounded-xl bg-card border border-border shadow-xl p-2.5 flex items-center gap-2 max-w-[220px]">
+      {/* Floating accent: smart-recalc banner (positioned to avoid left-edge clipping) */}
+      <div className="absolute -bottom-4 left-4 sm:left-8 rounded-xl bg-card border border-border shadow-xl p-2.5 flex items-center gap-2 max-w-[220px] z-10">
         <div className="w-7 h-7 rounded-lg bg-warning/15 flex items-center justify-center shrink-0">
           <Zap className="w-3.5 h-3.5 text-warning" />
         </div>
