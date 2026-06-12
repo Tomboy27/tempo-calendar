@@ -8,13 +8,16 @@ import {
   hasValidToken,
   isSignedIn,
   signOut,
+  GoogleAuthError,
 } from '../lib/google';
 
 interface UseGoogleCalendarReturn {
   isLoaded: boolean;
   isAuthenticated: boolean;
   isLoading: boolean;
-  error: string | null;
+  /** Stable error object with a `code` for UI branching and `message` for display.
+   *  Always a GoogleAuthError (non-Error throws are wrapped). */
+  error: GoogleAuthError | null;
   events: CalendarEvent[];
   connect: () => Promise<void>;
   disconnect: () => void;
@@ -55,7 +58,7 @@ export function useGoogleCalendar(): UseGoogleCalendarReturn {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<GoogleAuthError | null>(null);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const initialized = useRef(false);
   const authChecked = useRef(false);
@@ -78,7 +81,7 @@ export function useGoogleCalendar(): UseGoogleCalendarReturn {
       } catch (err) {
         console.error('[useGoogleCalendar] Failed to load Google API:', err);
         if (mounted) {
-          setError('Failed to load Google Calendar API');
+          setError(new GoogleAuthError('OTHER', 'Failed to load Google Calendar API'));
         }
       }
     }
@@ -168,7 +171,11 @@ export function useGoogleCalendar(): UseGoogleCalendarReturn {
     } catch (err: unknown) {
       console.error('[useGoogleCalendar] Connection failed:', err);
       setIsAuthenticated(false);
-      setError(err instanceof Error ? err.message : 'Failed to connect to Google Calendar');
+      setError(
+        err instanceof GoogleAuthError
+          ? err
+          : new GoogleAuthError('OTHER', err instanceof Error ? err.message : 'Failed to connect to Google Calendar')
+      );
     } finally {
       setIsLoading(false);
     }
@@ -200,7 +207,11 @@ export function useGoogleCalendar(): UseGoogleCalendarReturn {
       console.log(`[useGoogleCalendar] Refreshed ${mapped.length} events`);
     } catch (err: unknown) {
       console.error('[useGoogleCalendar] Refresh failed:', err);
-      setError(err instanceof Error ? err.message : 'Failed to refresh events');
+      setError(
+        err instanceof GoogleAuthError
+          ? err
+          : new GoogleAuthError('OTHER', err instanceof Error ? err.message : 'Failed to refresh events')
+      );
     } finally {
       setIsLoading(false);
     }

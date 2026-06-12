@@ -65,8 +65,14 @@ A personal scheduling app that auto-schedules tasks into open time slots. Built 
 2. Create a project or select existing
 3. Enable the Google Calendar API
 4. Create OAuth 2.0 credentials (Web application type)
-5. Add your deployment URL to Authorized JavaScript origins (e.g. `https://your-app.vercel.app`)
+5. **Add to Authorized JavaScript origins:**
+   - `http://localhost:5173` (local dev — no trailing slash)
+   - Any other localhost ports you use (e.g. `http://localhost:5174` if Vite falls back)
+   - Your Vercel production URL (e.g. `https://your-app.vercel.app`)
+   - Your Vercel preview pattern (e.g. `https://*-your-team.vercel.app` for branch previews)
 6. Copy the Client ID to your `.env` as `VITE_GOOGLE_CLIENT_ID`
+
+> ⚠️ If you see **"Couldn't open the Google sign-in window"** when clicking Connect, the most common cause is that the current origin (shown in the error banner) isn't in this list. See [SETUP.md](./SETUP.md) step 3 for the full fix.
 
 ## Deployment
 

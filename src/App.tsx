@@ -15,7 +15,7 @@ import { VersionBadge } from './components/VersionBadge';
 import { Button } from './components/ui/button';
 import { LeftRail } from './components/LeftRail';
 import { ProductPreviewMock } from './components/ProductPreviewMock';
-import { AlertCircle, Link2, RefreshCw, LogIn, Zap, Settings2, Calendar, Sparkles, ArrowRight, BarChart3, Layers } from 'lucide-react';
+import { AlertCircle, Link2, RefreshCw, LogIn, Zap, Settings2, Calendar, Sparkles, ArrowRight, BarChart3, Layers, Copy, ExternalLink, Check } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { format } from 'date-fns';
 import { detectConflicts } from './lib/rescheduler';
@@ -460,9 +460,12 @@ function App() {
               </div>
 
               {calendar.error && (
-                <div className="mt-5 p-3 bg-destructive/5 border border-destructive/20 rounded-lg flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
-                  <p className="text-sm text-destructive text-left">{calendar.error}</p>
+                <div className="mt-5 p-4 bg-destructive/5 border border-destructive/20 rounded-lg space-y-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+                    <p className="text-sm text-destructive text-left leading-relaxed">{calendar.error.message}</p>
+                  </div>
+                  {calendar.error.code === 'ORIGIN_NOT_AUTHORIZED' && <OriginNotAuthorizedHelp />}
                 </div>
               )}
             </div>
@@ -498,7 +501,7 @@ function App() {
         isAuthenticated={calendar.isAuthenticated}
         isLoaded={calendar.isLoaded}
         isLoading={calendar.isLoading}
-        error={calendar.error}
+        error={calendar.error?.message ?? null}
         onConnect={calendar.connect}
         onDisconnect={calendar.disconnect}
         onRefresh={calendar.refreshEvents}
@@ -529,7 +532,7 @@ function App() {
       {calendar.error && (
         <div className="flex items-center gap-2 px-4 py-2 bg-destructive/5 border-b border-destructive/20 text-sm text-destructive">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-          {calendar.error}
+          {calendar.error.message}
         </div>
       )}
 
@@ -705,6 +708,85 @@ function App() {
 
       <VersionBadge />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Inline helper shown when the Google sign-in fails with
+ * `ORIGIN_NOT_AUTHORIZED` (the GIS `popup_failed_to_open` error).
+ * The most common cause is that the current origin isn't listed under
+ * "Authorized JavaScript origins" on the Google OAuth Client ID.
+ *
+ * Renders a one-click "Copy origin" button (with a graceful fallback when
+ * the Clipboard API is unavailable) and a direct link to the Google Cloud
+ * Console credentials page.
+ */
+function OriginNotAuthorizedHelp() {
+  const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
+  // Clear any pending reset on unmount so we never call setState after teardown,
+  // and cancel any in-flight timer when a new copy happens (avoids the
+  // "Copied" label flickering on rapid re-clicks).
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(origin);
+      setCopied(true);
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = window.setTimeout(() => {
+        setCopied(false);
+        timeoutRef.current = null;
+      }, 2000);
+    } catch (err) {
+      console.warn('[OriginNotAuthorizedHelp] Copy failed:', err);
+      // Silent — the code chip is still visible so the user can copy manually.
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap pl-6">
+      <button
+        type="button"
+        onClick={handleCopy}
+        aria-label="Copy current origin to clipboard"
+        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent transition-colors"
+      >
+        {copied ? (
+          <>
+            <Check className="w-3 h-3" />
+            Copied
+          </>
+        ) : (
+          <>
+            <Copy className="w-3 h-3" />
+            Copy origin
+          </>
+        )}
+      </button>
+      <a
+        href="https://console.cloud.google.com/apis/credentials"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground hover:bg-destructive/90 transition-colors"
+      >
+        Open Google Cloud Console
+        <ExternalLink className="w-3 h-3" />
+      </a>
+      <code className="text-[11px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
+        {origin}
+      </code>
     </div>
   );
 }

@@ -36,6 +36,27 @@ const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.go
 const STORAGE_KEY_TOKEN = 'tempo_google_token';
 const STORAGE_KEY_EXPIRY = 'tempo_google_expiry';
 
+/** Stable error codes for Google sign-in failures. The UI can match on
+ *  `error.code` (decoupled from the user-facing `message`, which can be
+ *  reworded or localized without breaking the self-serve UI). */
+export type GoogleAuthErrorCode =
+  | 'ORIGIN_NOT_AUTHORIZED'  // GIS popup_failed_to_open — Client ID missing this origin
+  | 'POPUP_CLOSED'           // user dismissed the popup
+  | 'ACCESS_DENIED'          // user declined consent
+  | 'UNKNOWN_RISK_LEVEL'     // page is in an iframe or sandboxed
+  | 'TIMEOUT'                // GIS callback never fired within 15s
+  | 'MISSING_CLIENT_ID'      // VITE_GOOGLE_CLIENT_ID not set
+  | 'OTHER';                 // unclassified
+
+export class GoogleAuthError extends Error {
+  readonly code: GoogleAuthErrorCode;
+  constructor(code: GoogleAuthErrorCode, message: string) {
+    super(message);
+    this.name = 'GoogleAuthError';
+    this.code = code;
+  }
+}
+
 // Restore token from sessionStorage on module load
 (function restoreToken() {
   try {
@@ -166,7 +187,7 @@ export function requestAccessToken(): Promise<string> {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) {
       console.error('[Google] Missing VITE_GOOGLE_CLIENT_ID');
-      reject(new Error('Missing Google Client ID'));
+      reject(new GoogleAuthError('MISSING_CLIENT_ID', 'Missing Google Client ID'));
       return;
     }
 
@@ -182,7 +203,7 @@ export function requestAccessToken(): Promise<string> {
     // we reject so the UI can leave the loading state.
     const timeoutId = setTimeout(() => {
       console.warn('[Google] Consent popup timed out after 15s');
-      settle(() => reject(new Error('Google sign-in timed out. Please try again.')));
+      settle(() => reject(new GoogleAuthError('TIMEOUT', 'Google sign-in timed out. Please try again.')));
     }, 15_000);
 
     const client = google.accounts.oauth2.initTokenClient({
@@ -191,7 +212,7 @@ export function requestAccessToken(): Promise<string> {
       callback: (response: google.accounts.oauth2.TokenResponse) => {
         if (response.error) {
           console.error('[Google] Auth error:', response.error, response.error_subtype, response.error_description);
-          settle(() => reject(new Error(response.error_description || response.error)));
+          settle(() => reject(new GoogleAuthError('OTHER', response.error_description || response.error || 'Unknown Google sign-in error')));
           return;
         }
         console.log('[Google] Token obtained via consent popup');
@@ -207,27 +228,27 @@ export function requestAccessToken(): Promise<string> {
         const errType = (err as { type?: string })?.type || '';
         const errMsg = (err as { message?: string })?.message || '';
 
+        let code: GoogleAuthErrorCode = 'OTHER';
         let message: string;
-        if (
-          errType === 'popup_failed_to_open' ||
-          /failed to open/i.test(errMsg)
-        ) {
-          // Most common dev cause: the Google OAuth Client ID doesn't list
-          // this origin under "Authorized JavaScript origins" in Google
-          // Cloud Console. Browser popup blockers are the other common cause.
+
+        if (errType === 'popup_failed_to_open' || /failed to open/i.test(errMsg)) {
+          code = 'ORIGIN_NOT_AUTHORIZED';
           message = 'Couldn\'t open the Google sign-in window. Your browser may be blocking popups, or your Google Client ID isn\'t authorized for this origin. Allow popups, then add the origin to your Client ID\'s authorized JavaScript origins in Google Cloud Console.';
         } else if (errType === 'popup_closed' || /closed|cancelled|canceled/i.test(errMsg)) {
+          code = 'POPUP_CLOSED';
           message = 'Google sign-in was cancelled.';
         } else if (errType === 'access_denied' || /access_denied|denied/i.test(errMsg)) {
+          code = 'ACCESS_DENIED';
           message = 'Google sign-in was denied. Please try again and grant the requested permissions.';
         } else if (errType === 'unknown_risk_level') {
+          code = 'UNKNOWN_RISK_LEVEL';
           message = 'Google blocked the sign-in for security reasons. Try again from a normal browser window (not an iframe or embedded view).';
         } else if (errMsg) {
           message = `Google sign-in failed: ${errMsg}`;
         } else {
           message = 'Google sign-in failed. Please try again.';
         }
-        settle(() => reject(new Error(message)));
+        settle(() => reject(new GoogleAuthError(code, message)));
       },
     });
 
@@ -235,7 +256,7 @@ export function requestAccessToken(): Promise<string> {
       client.requestAccessToken({ prompt: 'consent' });
     } catch (err) {
       console.error('[Google] requestAccessToken threw:', err);
-      settle(() => reject(err instanceof Error ? err : new Error('Failed to start Google sign-in')));
+      settle(() => reject(new GoogleAuthError('OTHER', err instanceof Error ? err.message : 'Failed to start Google sign-in')));
     }
   });
 }
