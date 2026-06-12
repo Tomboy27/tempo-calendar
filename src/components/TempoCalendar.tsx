@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { format, startOfWeek, endOfWeek, addDays, addWeeks, addMonths, subWeeks, subMonths, subDays, startOfDay, endOfDay, isSameDay, isSameMonth, isToday, differenceInMinutes, setHours, setMinutes, setSeconds, setMilliseconds } from 'date-fns';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragMoveEvent } from '@dnd-kit/core';
 import { DraggableEvent } from './CalendarEvent';
 import { cn } from '../lib/utils';
 import { computeEventDrop } from '../lib/drag';
@@ -306,9 +306,15 @@ interface WeekViewProps {
   onEventDrop?: (eventId: string, newStart: Date, newEnd: Date) => void;
   /** Ref the parent reads to compute horizontal drag → day offset. */
   dayColumnWidthRef?: DayColumnWidthRef;
+  /**
+   * Live target of the in-progress drag, used to render a translucent
+   * ghost rectangle at the day/time the event will land on. `null` when no
+   * drag is active or when the drag is sub-threshold.
+   */
+  dragGhost?: { eventId: string; newStart: Date; newEnd: Date; title: string; variant?: CalendarEventVariant } | null;
 }
 
-function WeekView({ date, events, startHour, endHour, onSelectEvent, onSelectSlot, dayColumnWidthRef }: WeekViewProps) {
+function WeekView({ date, events, startHour, endHour, onSelectEvent, onSelectSlot, dayColumnWidthRef, dragGhost }: WeekViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const [, setTick] = useState(0);
@@ -505,6 +511,88 @@ function WeekView({ date, events, startHour, endHour, onSelectEvent, onSelectSlo
             );
           })}
 
+          {/* Drag ghost — translucent preview at the target day/time */}
+          {dragGhost && (() => {
+            const weekStartMidnight = startOfDay(weekStart);
+            const ghostStartMidnight = startOfDay(dragGhost.newStart);
+            const rawDayIdx = Math.round(
+              (ghostStartMidnight.getTime() - weekStartMidnight.getTime()) / (24 * 60 * 60_000),
+            );
+            // Clamp to visible week (0..6) so the ghost stays on-screen
+            // even if the user drags past the edge.
+            const dayIdx = Math.max(0, Math.min(6, rawDayIdx));
+            const dayDate = addDays(weekStart, dayIdx);
+            const visibleStart = setMilliseconds(setSeconds(setMinutes(setHours(dayDate, startHour), 0), 0), 0);
+            const minutesFromTop = differenceInMinutes(dragGhost.newStart, visibleStart);
+            const durationMin = differenceInMinutes(dragGhost.newEnd, dragGhost.newStart);
+            // Top is clamped to the visible window; the ghost extends out
+            // of the top/bottom as needed so the user sees "this won't fit".
+            const top = Math.max(0, (minutesFromTop / 60) * HOUR_HEIGHT);
+            const visibleMaxTop = (endHour - startHour) * HOUR_HEIGHT;
+            const height = Math.max(22, Math.min(visibleMaxTop - top, (durationMin / 60) * HOUR_HEIGHT));
+            // Position the ghost inside the target day column, just like DraggableEvent.
+            const left = `calc(64px + 3px + (100% - 64px - 6px) * ${dayIdx} / 7)`;
+            const width = `calc((100% - 64px - 6px) / 7)`;
+            const variantClass =
+              dragGhost.variant === 'warning' ? 'bg-warning/20 border-warning text-foreground' :
+              dragGhost.variant === 'destructive' ? 'bg-destructive/20 border-destructive text-foreground' :
+              dragGhost.variant === 'success' ? 'bg-success/20 border-success text-foreground' :
+              dragGhost.variant === 'secondary' ? 'bg-event-task/30 border-event-task-border text-foreground' :
+              dragGhost.variant === 'muted' ? 'bg-muted border-muted-foreground/30 text-foreground' :
+              'bg-primary/20 border-primary text-foreground';
+            // Highlight the target column header
+            const targetDay = days[dayIdx];
+            const isOffWeek = rawDayIdx !== dayIdx;
+            return (
+              <>
+                {/* Column header highlight */}
+                <div
+                  className="pointer-events-none absolute z-10 transition-colors"
+                  style={{
+                    // Header is `64px_repeat(7,1fr)`, height matches header
+                    left: `calc(64px + (100% - 64px) * ${dayIdx} / 7)`,
+                    width: `calc((100% - 64px) / 7)`,
+                    top: -48,
+                    height: 48,
+                    background: 'oklch(var(--primary) / 0.08)',
+                    borderTop: '2px solid oklch(var(--primary))',
+                  }}
+                  aria-hidden
+                >
+                  <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                    Drop on {format(targetDay, 'EEE d')}
+                  </div>
+                </div>
+                {/* Ghost rectangle */}
+                <div
+                  className={cn(
+                    'absolute z-30 rounded-md border-2 border-dashed pointer-events-none flex flex-col px-1.5 py-1 overflow-hidden',
+                    variantClass,
+                    'backdrop-blur-[1px] shadow-lg',
+                  )}
+                  style={{ top, height, left, width }}
+                  aria-hidden
+                >
+                  <div className="flex items-center gap-1">
+                    <span className="font-semibold truncate text-[10px]">{dragGhost.title}</span>
+                  </div>
+                  <div className="text-[9px] opacity-75 num">
+                    {format(dragGhost.newStart, 'h:mma')} – {format(dragGhost.newEnd, 'h:mma')}
+                  </div>
+                </div>
+                {/* Edge indicator: ghost is clamped (drag went past visible week) */}
+                {isOffWeek && (
+                  <div
+                    className="absolute z-30 top-1 right-2 px-1.5 py-0.5 rounded bg-primary text-primary-foreground text-[9px] font-semibold pointer-events-none"
+                    aria-hidden
+                  >
+                    {rawDayIdx < 0 ? '← past week' : 'past week →'}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+
           {/* Now line (spans full week width) */}
           {nowOffset !== null && (
             <div
@@ -677,7 +765,48 @@ export function TempoCalendar({
   // Drag-and-drop: 5px activation distance to avoid hijacking clicks
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  /**
+   * Live ghost target computed on every drag-move. `null` when sub-threshold
+   * or when the event is unknown — the WeekView hides the overlay accordingly.
+   */
+  const [dragGhost, setDragGhost] = useState<{
+    eventId: string;
+    newStart: Date;
+    newEnd: Date;
+    title: string;
+    variant?: CalendarEventVariant;
+  } | null>(null);
+
+  const handleDragMove = useCallback((event: DragMoveEvent) => {
+    const ev = event.active.data?.current?.event ?? events.find((e) => e.id === String(event.active.id));
+    if (!ev) {
+      setDragGhost(null);
+      return;
+    }
+    const result = computeEventDrop({
+      start: ev.start,
+      end: ev.end,
+      deltaX: event.delta.x,
+      deltaY: event.delta.y,
+      hourHeight: HOUR_HEIGHT,
+      dayColumnWidth: dayColumnWidthRef.current,
+      view,
+    });
+    if (!result) {
+      setDragGhost(null);
+      return;
+    }
+    setDragGhost({
+      eventId: ev.id,
+      newStart: result.newStart,
+      newEnd: result.newEnd,
+      title: ev.title,
+      variant: ev.variant,
+    });
+  }, [events, view]);
+
   const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setDragGhost(null);
     if (!onEventDrop) return;
     const id = String(event.active.id);
     const ev = events.find((e) => e.id === id);
@@ -695,6 +824,8 @@ export function TempoCalendar({
     if (!result) return;
     onEventDrop(id, result.newStart, result.newEnd);
   }, [events, onEventDrop, view]);
+
+  const handleDragCancel = useCallback(() => setDragGhost(null), []);
 
   const title = useMemo(() => {
     if (view === 'day') return format(date, 'EEEE, MMMM d');
@@ -767,7 +898,7 @@ export function TempoCalendar({
       </div>
 
       {/* View */}
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} onDragMove={handleDragMove} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
         <div className="flex-1 min-h-0 animate-fade-in">
         {view === 'day' && (
           <DayView
@@ -788,6 +919,7 @@ export function TempoCalendar({
             onSelectEvent={onSelectEvent}
             onSelectSlot={onSelectSlot}
             dayColumnWidthRef={dayColumnWidthRef}
+            dragGhost={dragGhost}
           />
         )}
         {view === 'month' && (
