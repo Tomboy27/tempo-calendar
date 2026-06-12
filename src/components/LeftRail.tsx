@@ -73,9 +73,18 @@ export function LeftRail({
         className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-3 shadow-sm"
         title="Tempo Calendar"
       >
-        <span className="text-base font-bold text-primary-foreground tracking-tight">
-          T
-        </span>
+        {/* Tempo mark: three vertical bars of different heights.
+            A rhythm/equalizer pattern that says "tempo" without being a letter. */}
+        <svg
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          className="w-6 h-6 text-primary-foreground"
+          aria-hidden
+        >
+          <rect x="4" y="14" width="3" height="8" rx="0.6" />
+          <rect x="10.5" y="7" width="3" height="15" rx="0.6" />
+          <rect x="17" y="11" width="3" height="11" rx="0.6" />
+        </svg>
       </div>
 
       {/* Primary nav + actions (only when authenticated) */}

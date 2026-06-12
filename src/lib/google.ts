@@ -153,6 +153,11 @@ export function trySilentAuth(): Promise<boolean> {
 /**
  * Request access token with user popup (consent prompt).
  * Returns the access token string on success.
+ *
+ * The promise ALWAYS settles within 60s so callers can reset loading state.
+ * `error_callback` covers the case where the user dismisses the popup
+ * without an explicit error response (GIS sometimes never fires the main
+ * callback in that case, which previously left the app stuck on "Connecting").
  */
 export function requestAccessToken(): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -165,22 +170,50 @@ export function requestAccessToken(): Promise<string> {
       return;
     }
 
+    let settled = false;
+    const settle = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      fn();
+    };
+
+    // Failsafe: if the GIS callback never fires (popup closed, blocked, etc.)
+    // we reject so the UI can leave the loading state.
+    const timeoutId = setTimeout(() => {
+      console.warn('[Google] Consent popup timed out after 15s');
+      settle(() => reject(new Error('Google sign-in timed out. Please try again.')));
+    }, 15_000);
+
     const client = google.accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: SCOPES,
       callback: (response: google.accounts.oauth2.TokenResponse) => {
         if (response.error) {
           console.error('[Google] Auth error:', response.error, response.error_subtype, response.error_description);
-          reject(new Error(response.error_description || response.error));
+          settle(() => reject(new Error(response.error_description || response.error)));
           return;
         }
         console.log('[Google] Token obtained via consent popup');
         persistToken(response.access_token, response.expires_in || 3600);
-        resolve(response.access_token);
+        settle(() => resolve(response.access_token));
+      },
+      error_callback: (err) => {
+        console.warn('[Google] Popup error callback fired:', err);
+        const message =
+          err?.message?.includes('popup_closed') || err?.message?.includes('closed')
+            ? 'Google sign-in was cancelled.'
+            : err?.message || 'Google sign-in failed. Please try again.';
+        settle(() => reject(new Error(message)));
       },
     });
 
-    client.requestAccessToken({ prompt: 'consent' });
+    try {
+      client.requestAccessToken({ prompt: 'consent' });
+    } catch (err) {
+      console.error('[Google] requestAccessToken threw:', err);
+      settle(() => reject(err instanceof Error ? err : new Error('Failed to start Google sign-in')));
+    }
   });
 }
 

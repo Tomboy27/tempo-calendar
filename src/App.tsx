@@ -303,27 +303,7 @@ function App() {
   // Not signed in to Tempo: sign-in prompt
   if (!auth.isAuthenticated) {
     return (
-      <div className="min-h-[100dvh] flex app-gradient">
-        <LeftRail
-          activeView={activeView}
-          onViewChange={setActiveView}
-          isAuthenticated={false}
-          isLoaded={calendar.isLoaded}
-          isLoading={calendar.isLoading}
-          error={calendar.error}
-          onConnect={calendar.connect}
-          onDisconnect={calendar.disconnect}
-          onRefresh={calendar.refreshEvents}
-          onScheduleAll={handleScheduleAll}
-          unscheduledCount={unscheduledCount}
-          user={auth.user}
-          onSignIn={() => setShowAuthDialog(true)}
-          onSignOut={auth.signOut}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          onOpenSettings={() => setShowSettings(true)}
-        />
-        <div className="flex-1 flex flex-col min-w-0">
+      <div className="min-h-[100dvh] flex flex-col app-gradient">
         <Header
           isAuthenticated={false}
           isLoaded={calendar.isLoaded}
@@ -393,8 +373,8 @@ function App() {
           {/* Right: product preview (desktop only) */}
           <div className="hidden lg:block">
             <ProductPreviewMock />
-          </div>          </main>
-        </div>
+          </div>
+          </main>
         <AuthDialog open={showAuthDialog} onClose={() => setShowAuthDialog(false)} />
         <SettingsPanel
           open={showSettings}
@@ -427,27 +407,7 @@ function App() {
     }
 
     return (
-      <div className="min-h-[100dvh] flex app-gradient">
-        <LeftRail
-          activeView={activeView}
-          onViewChange={setActiveView}
-          isAuthenticated={false}
-          isLoaded={calendar.isLoaded}
-          isLoading={calendar.isLoading}
-          error={calendar.error}
-          onConnect={calendar.connect}
-          onDisconnect={calendar.disconnect}
-          onRefresh={calendar.refreshEvents}
-          onScheduleAll={handleScheduleAll}
-          unscheduledCount={unscheduledCount}
-          user={auth.user}
-          onSignIn={() => setShowAuthDialog(true)}
-          onSignOut={auth.signOut}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          onOpenSettings={() => setShowSettings(true)}
-        />
-        <div className="flex-1 flex flex-col min-w-0">
+      <div className="min-h-[100dvh] flex flex-col app-gradient">
         <Header
           isAuthenticated={false}
           isLoaded={calendar.isLoaded}
@@ -527,7 +487,6 @@ function App() {
               <ProductPreviewMock />
             </div>
           </main>
-        </div>
         <SettingsPanel
           open={showSettings}
           onClose={() => setShowSettings(false)}
