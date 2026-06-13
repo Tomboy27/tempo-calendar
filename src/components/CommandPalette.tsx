@@ -1,9 +1,23 @@
 import { useState, useMemo, useRef } from 'react';
 import { Command } from 'cmdk';
-import { Calendar, Plus, Settings, Sun, Moon, Inbox, Sparkles, Zap, Check } from 'lucide-react';
+import { Calendar, Plus, Settings, Sun, Moon, Inbox, Sparkles, Zap, Check, type LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import * as chrono from 'chrono-node';
 import { format, isToday, isTomorrow } from 'date-fns';
+
+interface PaletteAction {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  shortcut?: string;
+  current?: boolean;
+  action: () => void | Promise<void>;
+}
+
+type PaletteGroup = {
+  group: string;
+  items: PaletteAction[];
+};
 
 interface CommandPaletteProps {
   open: boolean;
@@ -76,7 +90,13 @@ export function CommandPalette({
     return parsed.date || parsed.time ? parsed : null;
   }, [value]);
 
-  // Reset on close via ref-during-render (canonical external-prop-to-state pattern)
+  // Reset on close via ref-during-render (canonical external-prop-to-state pattern).
+  // The `react-hooks/refs` rule disallows mutating refs during render, but this
+  // exact pattern is the documented escape hatch for "derive local state from a
+  // prop" (https://react.dev/reference/react/useState#storing-information-from-previous-renders)
+  // — it avoids the setState-in-effect anti-pattern. Suppress the lint for the
+  // whole block since both the access AND the mutation are intentional.
+  /* eslint-disable react-hooks/refs */
   const prevOpenRef = useRef(open);
   if (open !== prevOpenRef.current) {
     prevOpenRef.current = open;
@@ -84,6 +104,7 @@ export function CommandPalette({
       setValue('');
     }
   }
+  /* eslint-enable react-hooks/refs */
 
   const handleSubmit = async () => {
     const trimmed = value.trim();
@@ -109,7 +130,7 @@ export function CommandPalette({
     onOpenChange(false);
   };
 
-  const actions = useMemo(() => [
+  const actions = useMemo<PaletteGroup[]>(() => [
     { group: 'Navigate', items: [
       { id: 'view-day', label: 'Day view', icon: Calendar, shortcut: 'D', current: currentView === 'day', action: () => onNavigate('day') },
       { id: 'view-week', label: 'Week view', icon: Calendar, shortcut: 'W', current: currentView === 'week', action: () => onNavigate('week') },
@@ -122,7 +143,7 @@ export function CommandPalette({
     { group: 'Appearance', items: [
       { id: 'theme', label: theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode', icon: theme === 'dark' ? Sun : Moon, shortcut: 'T', action: () => { onToggleTheme(); onOpenChange(false); } },
     ]},
-  ], [currentView, theme, onNavigate, onScheduleAll, onOpenSettings, onToggleTheme]);
+  ], [currentView, theme, onNavigate, onScheduleAll, onOpenSettings, onToggleTheme, onOpenChange]);
 
   if (!open) return null;
 
@@ -191,7 +212,7 @@ export function CommandPalette({
 
             {actions.map((group) => (
               <Command.Group key={group.group} heading={group.group}>
-                {group.items.map((item: any) => (
+                {group.items.map((item) => (
                   <Command.Item
                     key={item.id}
                     value={item.id}
