@@ -79,13 +79,25 @@ function App() {
   const auth = useAuth();
   const tasksHook = useTasks();
 
+  // Ref for the focus-mode-open state, read inside the deletion handler
+  // before `focusMode` is declared further down. Avoids putting `focusMode`
+  // in the handler's useCallback deps (which would rebuild it on every
+  // open/close and re-arm the calendar hook's onEventsDeleted callback).
+  const focusModeOpenRef = useRef(false);
+
   // Two-way Google sync: when the calendar hook's polling detects that
   // one or more Google events have disappeared (the user deleted them
   // in Google Calendar), unlink the local tasks that were synced to
   // those events and toast the user. The task itself is preserved (we
   // just clear the link to the now-gone Google event).
+  //
+  // Focus Mode is an immersive Pomodoro surface — Sonner renders toasts
+  // into a document-level portal so they would pop up on top of the
+  // full-screen overlay and break the work session. We suppress the
+  // toast while focus mode is open; the unlink still happens silently.
   const handleGoogleEventsDeleted = useCallback(async (deletedIds: string[]) => {
     if (deletedIds.length === 0) return;
+    if (focusModeOpenRef.current) return; // Don't disturb Focus Mode
     try {
       const { count, titles } = await tasksHook.unlinkFromGoogleEvents(deletedIds);
       if (count > 0) {
@@ -123,6 +135,11 @@ function App() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [tempoView, setTempoView] = useState<'day' | 'week' | 'month'>('week');
   const [focusMode, setFocusMode] = useState<{ open: boolean; taskId: string | null }>({ open: false, taskId: null });
+  // Keep the ref in sync so the deletion handler can read it without
+  // being rebuilt on every focus-mode open/close.
+  useEffect(() => {
+    focusModeOpenRef.current = focusMode.open;
+  }, [focusMode.open]);
   const didAuthTransitionRef = useRef(auth.isAuthenticated);
 
   const { tasks: allTasks, refresh } = tasksHook;
@@ -280,18 +297,36 @@ function App() {
   // changes. Reads the current task from `tasksHook.tasks` rather than
   // the stale `editingTask` ref so the toast doesn't re-fire if the
   // user toggles another subtask after auto-completion.
+  //
+  // Debounced by 400ms: if a user is rapidly toggling the last remaining
+  // subtask on/off, we wait for a stable "all done" state before firing
+  // the auto-complete. This avoids two concurrent requests racing to
+  // flip the parent's status, and avoids the toast firing for a state
+  // the user immediately reverted.
   useEffect(() => {
     if (!editingTask) return;
-    const current = tasksHook.tasks.find((t) => t.id === editingTask.id);
-    if (!current || current.status !== 'active') return;
     const subs = subtasksBatch.byTaskId.get(editingTask.id) || [];
     if (subs.length === 0) return;
-    if (subs.every((s) => s.completed)) {
-      tasksHook.complete(editingTask.id);
-      toast.success('All subtasks done — task auto-completed!');
-    }
+    if (!subs.every((s) => s.completed)) return;
+    const timer = setTimeout(() => {
+      // Re-read the latest state — the user may have toggled a subtask
+      // back to incomplete during the debounce window, or the parent
+      // may have been completed by another code path.
+      const current = tasksHook.tasks.find((t) => t.id === editingTask.id);
+      if (current && current.status === 'active') {
+        tasksHook.complete(editingTask.id);
+        toast.success('All subtasks done — task auto-completed!');
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+    // Narrow deps on purpose: the effect should re-fire only when the
+    // subtask state for the editing task changes. Listing `tasksHook.tasks`
+    // here would reset the debounce timer on every unrelated task
+    // mutation (e.g., a sync update from another tab), making the
+    // auto-complete feel laggy. The latest `tasks` is read inside the
+    // timer closure via the stable `tasksHook` reference.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subtasksBatch.byTaskId, editingTask?.id]);
+  }, [subtasksBatch.byTaskId, editingTask?.id, tasksHook]);
 
   useEffect(() => {
     if (auth.isAuthenticated && !didAuthTransitionRef.current) refresh();

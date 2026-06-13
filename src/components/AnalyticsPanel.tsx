@@ -270,7 +270,7 @@ function TimePerCategory({ slices }: { slices: CategorySlice[] }) {
       ))}
       {total > 0 && (
         <div className="pt-1 text-[10px] text-muted-foreground text-right">
-          {formatMinutes(total)} completed across {slices.length} {slices.length === 1 ? 'tag' : 'tags'}
+          {formatMinutes(total)} task-minutes across {slices.length} {slices.length === 1 ? 'tag' : 'tags'}
         </div>
       )}
     </div>
@@ -463,7 +463,13 @@ export function AnalyticsPanel({
 }) {
   const analytics = useAnalytics(tasks);
 
-  const isEmpty = tasks.length === 0;
+  // Two distinct empty states: a user with no tasks at all (nothing to show),
+  // and a user with only active tasks (zeros everywhere, which is confusing).
+  // Branch on completion count, not raw task count, so the second case gets
+  // a clear "finish a task to start seeing patterns here" message instead of
+  // a wall of zeros.
+  const noTasks = tasks.length === 0;
+  const noCompletions = !noTasks && analytics.completion.completed === 0;
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-y-auto tempo-scrollbar">
@@ -501,7 +507,7 @@ export function AnalyticsPanel({
 
       {/* Body */}
       <div className="px-4 lg:px-6 py-6 max-w-[1100px] w-full mx-auto space-y-5">
-        {isEmpty ? (
+        {noTasks ? (
           <div className="rounded-2xl border border-dashed border-border bg-card/50 p-12 text-center">
             <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <Sparkles className="w-6 h-6 text-primary" />
@@ -510,6 +516,18 @@ export function AnalyticsPanel({
             <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-[420px] mx-auto">
               Add some tasks and complete them over the next few days. Your streaks, time-per-tag,
               and best-hours heatmap will fill in here automatically.
+            </p>
+          </div>
+        ) : noCompletions ? (
+          <div className="rounded-2xl border border-dashed border-border bg-card/50 p-12 text-center">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-6 h-6 text-primary" />
+            </div>
+            <h2 className="text-base font-semibold text-foreground">Complete a task to start your insights</h2>
+            <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-[460px] mx-auto">
+              You have {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} in your pipeline, but none completed yet.
+              Finish one and your completion rate, daily streak, time-per-tag, and best-hours heatmap
+              will start filling in here automatically.
             </p>
           </div>
         ) : (
