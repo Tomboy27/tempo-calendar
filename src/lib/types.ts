@@ -176,6 +176,37 @@ export interface TaskDependency {
 }
 
 // ============================================================
+// Subtasks
+// ============================================================
+
+/**
+ * A single sub-step of a task. Subtasks are checkable (boolean
+ * `completed` field), ordered (`sort_order`), and cascade-deleted with
+ * their parent task.
+ */
+export interface Subtask {
+  id: string;
+  task_id: string;
+  title: string;
+  completed: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubtaskInput {
+  task_id: string;
+  title: string;
+  sort_order?: number;
+}
+
+export type SubtaskUpdate = {
+  title?: string;
+  completed?: boolean;
+  sort_order?: number;
+};
+
+// ============================================================
 // Calendar Provider Abstraction
 // ============================================================
 
