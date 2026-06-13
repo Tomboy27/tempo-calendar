@@ -15,6 +15,23 @@ interface UseGoogleCalendarOptions {
    * auto-fetches events.
    */
   accessToken: string | null;
+  /**
+   * Called when the latest fetch detects that one or more Google events
+   * have disappeared (e.g. the user deleted them in Google Calendar).
+   * The consumer should reconcile local state — typically by unlinking
+   * any tasks whose `google_event_id` matches a deleted ID.
+   *
+   * Fires on the FIRST poll after a new auth (skipped, because the
+   * `previousGoogleEventIdsRef` is reset on auth change so the diff
+   * only contains events that vanished during this session).
+   */
+  onEventsDeleted?: (deletedIds: string[]) => void;
+  /**
+   * How often to re-fetch events automatically, in ms. Default 60_000.
+   * Pass `0` to disable polling. Polling is paused while the tab is
+   * hidden and while the user is in the `disconnected` state.
+   */
+  pollIntervalMs?: number;
 }
 
 interface UseGoogleCalendarReturn {
@@ -26,6 +43,8 @@ interface UseGoogleCalendarReturn {
   /** Stable error object for UI display. Always a `GoogleAuthError`. */
   error: GoogleAuthError | null;
   events: CalendarEvent[];
+  /** Timestamp of the most recent successful fetch, or null. */
+  lastSyncAt: Date | null;
   /**
    * No-op for API compatibility. Calendar connection now happens
    * automatically as soon as the user signs in to Supabase via Google,
@@ -70,27 +89,69 @@ function getColorFromId(colorId: string): string {
   return colors[colorId] || '#7986cb';
 }
 
-export function useGoogleCalendar({ accessToken }: UseGoogleCalendarOptions): UseGoogleCalendarReturn {
+export function useGoogleCalendar({
+  accessToken,
+  onEventsDeleted,
+  pollIntervalMs = 60_000,
+}: UseGoogleCalendarOptions): UseGoogleCalendarReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<GoogleAuthError | null>(null);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
+  // `disconnect()` is a local action that flips the derived
+  // `isAuthenticated` to false without requiring the parent to clear the
+  // `accessToken` prop. We keep BOTH a state (for the public flag, which
+  // is safe to read in render) AND a ref (for internal use, so the
+  // `useCallback`/`useEffect` deps below stay stable — a state dep would
+  // re-fire the token-sync effect on disconnect and undo the disconnect).
+  const [disconnected, setDisconnected] = useState(false);
+  const disconnectedRef = useRef(false);
   // Track which token we last acted on so we don't refetch on every render
   // (e.g. when the parent passes the same token reference).
   const lastTokenRef = useRef<string | null | undefined>(undefined);
-  // `disconnect()` is a local action that shouldn't get re-applied when
-  // the parent re-renders with the same `accessToken`. We use a ref (not
-  // state) so flipping it doesn't trigger a re-render — the `isAuthenticated`
-  // value is recomputed on render and reads the ref.
-  const disconnectedRef = useRef(false);
+  // Track the set of Google event IDs we saw on the previous successful
+  // fetch so we can diff against the next fetch and report deletions.
+  // Reset on auth change / disconnect so we don't fire `onEventsDeleted`
+  // for events that vanished while the user was signed out.
+  const previousGoogleEventIdsRef = useRef<Set<string>>(new Set());
+  // `onEventsDeleted` is a consumer callback — keep a ref so the
+  // fetchAndSetEvents closure doesn't need to be rebuilt when it changes.
+  const onEventsDeletedRef = useRef(onEventsDeleted);
+  useEffect(() => { onEventsDeletedRef.current = onEventsDeleted; }, [onEventsDeleted]);
+  // Mirror `disconnected` into a ref so internal callers (the fetch
+  // closure and the polling interval) can read the latest value without
+  // listing `disconnected` in their dependency arrays. This is the only
+  // place that owns the mirror, preventing drift between state and ref.
+  useEffect(() => { disconnectedRef.current = disconnected; }, [disconnected]);
 
   const fetchAndSetEvents = useCallback(async () => {
+    if (disconnectedRef.current) return;
     setError(null);
     setIsLoading(true);
     try {
       console.log('[useGoogleCalendar] Fetching calendar events with Supabase-provided token');
       const googleEvents = await fetchCalendarEvents();
       const mapped = googleEvents.map(mapGoogleEvent);
+      // Diff against the previous fetch to find events that disappeared
+      // (i.e. the user deleted them in Google Calendar between polls).
+      // The catch block below never calls `onEventsDeleted`, so a transient
+      // fetch failure (network blip, auth glitch) can't fire a false
+      // "delete everything" event from this path. We do, however, gate on
+      // a non-empty baseline so the very first fetch after sign-in doesn't
+      // report "all events deleted" when the ref starts empty.
+      const newIds = new Set(mapped.map((e) => e.id));
+      const deletedIds: string[] = [];
+      for (const prevId of previousGoogleEventIdsRef.current) {
+        if (!newIds.has(prevId)) deletedIds.push(prevId);
+      }
+      const hasBaseline = previousGoogleEventIdsRef.current.size > 0;
+      if (hasBaseline && deletedIds.length > 0) {
+        console.log(`[useGoogleCalendar] Detected ${deletedIds.length} deleted Google event(s)`, deletedIds);
+        onEventsDeletedRef.current?.(deletedIds);
+      }
+      previousGoogleEventIdsRef.current = newIds;
       setEvents(mapped);
+      setLastSyncAt(new Date());
       console.log(`[useGoogleCalendar] Loaded ${mapped.length} events`);
     } catch (err: unknown) {
       console.error('[useGoogleCalendar] Failed to fetch events:', err);
@@ -114,21 +175,35 @@ export function useGoogleCalendar({ accessToken }: UseGoogleCalendarOptions): Us
           err instanceof Error ? err.message : 'Failed to fetch calendar events'
         ));
       }
-      // Don't keep showing stale events after an error.
-      setEvents([]);
+      // Intentionally do NOT clear `events` or update
+      // `previousGoogleEventIdsRef` on error. A transient error would
+      // otherwise make the next successful fetch look like "every event
+      // reappeared" or, worse, cause a false "deletion" of the entire
+      // calendar. Keeping the previous state lets the next successful
+      // fetch reconcile naturally.
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   // Sync the access token from the Supabase session into the `google`
-  // module whenever it changes, then auto-fetch events.
+  // module whenever it changes, then auto-fetch events. This effect
+  // intentionally performs the initial sync; the only alternative is
+  // to gate everything on a user action, which would leave the calendar
+  // empty until the first interaction. The setState calls below are
+  // legitimate and short-circuited by `lastTokenRef` to avoid loops.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (accessToken === lastTokenRef.current) return;
     lastTokenRef.current = accessToken;
     // A fresh accessToken means the user has (re-)authenticated, so
-    // clear any prior `disconnect()` override.
-    disconnectedRef.current = false;
+    // clear any prior `disconnect()` override AND reset the diff baseline
+    // so we don't report "deletions" for events that disappeared while
+    // the user was signed out (we only care about events that vanish
+    // during an active session). The state setter also flows to
+    // `disconnectedRef` via the mirror effect above.
+    setDisconnected(false);
+    previousGoogleEventIdsRef.current = new Set();
 
     if (accessToken) {
       console.log('[useGoogleCalendar] Supabase session has a Google access token, syncing');
@@ -138,8 +213,27 @@ export function useGoogleCalendar({ accessToken }: UseGoogleCalendarOptions): Us
       console.log('[useGoogleCalendar] No Google access token in session, clearing');
       clearAccessToken();
       setEvents([]);
+      setLastSyncAt(null);
     }
   }, [accessToken, fetchAndSetEvents]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Polling for external changes (two-way sync). Only runs when
+  // authenticated, not while disconnected, not while the tab is hidden,
+  // and only if `pollIntervalMs > 0`. The setInterval callback is the
+  // intended pattern for recurring fetches and reads `disconnectedRef`
+  // (not the `disconnected` state) so this effect doesn't re-arm on
+  // every disconnect/reconnect.
+  useEffect(() => {
+    if (!accessToken || !pollIntervalMs || pollIntervalMs <= 0) return;
+    const id = window.setInterval(() => {
+      if (disconnectedRef.current) return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      console.log('[useGoogleCalendar] Polling for external changes');
+      void fetchAndSetEvents();
+    }, pollIntervalMs);
+    return () => window.clearInterval(id);
+  }, [accessToken, pollIntervalMs, fetchAndSetEvents]);
 
   /**
    * Legacy no-op kept for API compatibility. The actual "connect" flow
@@ -158,8 +252,12 @@ export function useGoogleCalendar({ accessToken }: UseGoogleCalendarOptions): Us
     clearAccessToken();
     setEvents([]);
     setError(null);
+    setLastSyncAt(null);
     lastTokenRef.current = null;
-    disconnectedRef.current = true;
+    // The state setter flows to `disconnectedRef` via the mirror effect
+    // above, so the ref is updated in one place only.
+    setDisconnected(true);
+    previousGoogleEventIdsRef.current = new Set();
   }, []);
 
   const refreshEvents = useCallback(async () => {
@@ -177,10 +275,11 @@ export function useGoogleCalendar({ accessToken }: UseGoogleCalendarOptions): Us
     isLoaded: true,
     // Derived from the prop, with a local override so `disconnect()`
     // can flip it to false even though the `accessToken` prop is unchanged.
-    isAuthenticated: accessToken !== null && !disconnectedRef.current,
+    isAuthenticated: accessToken !== null && !disconnected,
     isLoading,
     error,
     events,
+    lastSyncAt,
     connect,
     disconnect,
     refreshEvents,

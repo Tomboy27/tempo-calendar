@@ -7,6 +7,7 @@ import {
   deleteTask as deleteTaskApi, updateTaskSchedule, unscheduleTask as unscheduleTaskApi,
   markTaskComplete,
   fetchTaskLists, fetchSchedulingProfiles,
+  unlinkTasksFromGoogleEvents,
 } from '../lib/tasks';
 import { scheduleMultipleTasks, pickBestSlot, findSlotsForTask } from '../lib/scheduler';
 import { batchReschedule, detectConflicts, type RescheduleResult } from '../lib/rescheduler';
@@ -38,6 +39,13 @@ interface UseTasksReturn {
   reschedule: (googleEvents: CalendarEvent[], config?: SchedulerConfig) => Promise<RescheduleResult[]>;
   complete: (id: string) => Promise<void>;
   reopen: (id: string) => Promise<void>;
+  /**
+   * Clear `google_event_id` on any task whose value appears in the
+   * input list. Used by two-way sync to unlink tasks whose Google
+   * events were deleted externally. Returns the count + titles of
+   * the tasks that were updated so the caller can show a toast.
+   */
+  unlinkFromGoogleEvents: (googleEventIds: string[]) => Promise<{ count: number; titles: string[] }>;
 }
 
 export function useTasks(): UseTasksReturn {
@@ -317,6 +325,21 @@ export function useTasks(): UseTasksReturn {
     }
   }, []);
 
+  const unlinkFromGoogleEvents = useCallback(async (googleEventIds: string[]): Promise<{ count: number; titles: string[] }> => {
+    if (googleEventIds.length === 0) return { count: 0, titles: [] };
+    try {
+      const rows = await unlinkTasksFromGoogleEvents(googleEventIds);
+      if (mountedRef.current && rows.length > 0) {
+        const ids = new Set(rows.map((r) => r.id));
+        setTasks((prev) => prev.map((t) => (ids.has(t.id) ? { ...t, google_event_id: null } : t)));
+      }
+      return { count: rows.length, titles: rows.map((r) => r.title) };
+    } catch (err) {
+      if (mountedRef.current) setError(err instanceof Error ? err.message : 'Failed to unlink tasks from Google');
+      return { count: 0, titles: [] };
+    }
+  }, []);
+
   const clearSyncErrors = useCallback(() => setSyncErrors([]), []);
 
   return {
@@ -326,5 +349,6 @@ export function useTasks(): UseTasksReturn {
     scheduleAll, scheduleOne, findSlots, unschedule,
     clearSyncErrors, detectConflicts: getConflicts, reschedule,
     complete, reopen,
+    unlinkFromGoogleEvents,
   };
 }

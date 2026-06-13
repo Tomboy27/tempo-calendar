@@ -76,12 +76,39 @@ function useWorkingHours(): [WorkingHoursState, (h: WorkingHoursState) => void] 
 
 function App() {
   const auth = useAuth();
+  const tasksHook = useTasks();
+
+  // Two-way Google sync: when the calendar hook's polling detects that
+  // one or more Google events have disappeared (the user deleted them
+  // in Google Calendar), unlink the local tasks that were synced to
+  // those events and toast the user. The task itself is preserved (we
+  // just clear the link to the now-gone Google event).
+  const handleGoogleEventsDeleted = useCallback(async (deletedIds: string[]) => {
+    if (deletedIds.length === 0) return;
+    try {
+      const { count, titles } = await tasksHook.unlinkFromGoogleEvents(deletedIds);
+      if (count > 0) {
+        const description = titles.length <= 2
+          ? titles.join(', ')
+          : `${titles.slice(0, 2).join(', ')} and ${titles.length - 2} more`;
+        toast.warning(
+          count === 1 ? 'Task unlinked from Google' : `${count} tasks unlinked from Google`,
+          { description: `Deleted in Google: ${description}` }
+        );
+      }
+    } catch (err) {
+      console.error('[App] Failed to unlink deleted Google events:', err);
+    }
+  }, [tasksHook]);
+
   // `useGoogleCalendar` now consumes the Google access token from the
   // Supabase session directly (no GIS popups). The token is null until
   // the user signs in via Supabase Google OAuth, at which point the
   // hook auto-fetches events.
-  const calendar = useGoogleCalendar({ accessToken: auth.googleAccessToken });
-  const tasksHook = useTasks();
+  const calendar = useGoogleCalendar({
+    accessToken: auth.googleAccessToken,
+    onEventsDeleted: handleGoogleEventsDeleted,
+  });
   const { theme, toggleTheme, setTheme, useSystemTheme } = useTheme();
   // (useSystemTheme is passed to SettingsPanel below)
   const [workingHours, setWorkingHours] = useWorkingHours();

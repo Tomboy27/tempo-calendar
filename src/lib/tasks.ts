@@ -184,6 +184,28 @@ export async function toggleTaskLock(id: string, isLocked: boolean): Promise<Tas
   return updateTask(id, { is_locked: isLocked });
 }
 
+/**
+ * Find tasks whose `google_event_id` matches one of the given IDs and
+ * clear the link. Used by the two-way sync in `useGoogleCalendar` to
+ * unlink tasks whose Google Calendar events were deleted externally.
+ *
+ * The task itself is NOT deleted and remains scheduled in our DB — we
+ * only break the link to the now-gone Google event. Returns the
+ * affected rows (id + title) so the caller can show a toast.
+ */
+export async function unlinkTasksFromGoogleEvents(
+  googleEventIds: string[]
+): Promise<{ id: string; title: string }[]> {
+  if (googleEventIds.length === 0) return [];
+  const { data, error } = await requireSupabase()
+    .from('tasks')
+    .update({ google_event_id: null })
+    .in('google_event_id', googleEventIds)
+    .select('id, title');
+  if (error) throw error;
+  return (data || []) as { id: string; title: string }[];
+}
+
 // ============================================================
 // Task Lists CRUD
 // ============================================================
