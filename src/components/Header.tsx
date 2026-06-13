@@ -1,4 +1,4 @@
-import { Calendar, RefreshCw, Unlink, ChevronDown, LogOut, Sun, Moon, Settings as SettingsIcon } from 'lucide-react';
+import { Calendar, RefreshCw, Unlink, ChevronDown, LogOut, Sun, Moon, Settings as SettingsIcon, Play } from 'lucide-react';
 import { Button } from './ui/button';
 import { useState } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -14,12 +14,15 @@ interface HeaderProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onOpenSettings: () => void;
+  /** Open focus mode. Optional — only rendered when provided. */
+  onOpenFocus?: () => void;
 }
 
 export function Header({
   isAuthenticated,
   onDisconnect, onRefresh, onScheduleAll, unscheduledCount,
   user, onSignOut, theme, onToggleTheme, onOpenSettings,
+  onOpenFocus,
 }: HeaderProps) {
   const [showAccount, setShowAccount] = useState(false);
 
@@ -39,6 +42,18 @@ export function Header({
       {/* Actions */}
       {isAuthenticated && (
         <div className="flex items-center gap-2">
+          {onOpenFocus && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={onOpenFocus}
+              className="h-8 px-3 text-xs font-medium gap-2"
+              title="Start focus mode (Cmd/Ctrl+Shift+F)"
+            >
+              <Play className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Focus</span>
+            </Button>
+          )}
           {unscheduledCount > 0 && (
             <Button
               variant="ghost"

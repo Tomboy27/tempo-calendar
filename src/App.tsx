@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useGoogleCalendar } from './hooks/useGoogleCalendar';
 import { useTasks } from './hooks/useTasks';
 import { useAuth } from './hooks/useAuth';
@@ -14,6 +14,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { OnboardingTour } from './components/OnboardingTour';
 import { CommandPalette } from './components/CommandPalette';
 import { VersionBadge } from './components/VersionBadge';
+import { FocusMode } from './components/FocusMode';
 import { Button } from './components/ui/button';
 import { LeftRail } from './components/LeftRail';
 import { ProductPreviewMock } from './components/ProductPreviewMock';
@@ -93,6 +94,7 @@ function App() {
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [tempoView, setTempoView] = useState<'day' | 'week' | 'month'>('week');
+  const [focusMode, setFocusMode] = useState<{ open: boolean; taskId: string | null }>({ open: false, taskId: null });
   const didAuthTransitionRef = useRef(auth.isAuthenticated);
 
   const { tasks: allTasks, refresh } = tasksHook;
@@ -103,6 +105,21 @@ function App() {
   const taskIds = useMemo(() => allTasks.map((t) => t.id), [allTasks]);
   const subtasksBatch = useSubtasksBatch(taskIds);
   const editingTaskSubtasks = useSubtasks(editingTask?.id ?? null);
+
+  // Focus Mode: the task being focused on (may be null while loading or
+  // if it was deleted) and the next 5 active, scheduled tasks for the
+  // up-next queue.
+  const focusCurrentTask = useMemo(() => {
+    if (!focusMode.taskId) return null;
+    return allTasks.find((t) => t.id === focusMode.taskId) || null;
+  }, [focusMode.taskId, allTasks]);
+
+  const focusQueue = useMemo(() => {
+    return allTasks
+      .filter((t) => t.status === 'active' && t.id !== focusMode.taskId && t.is_scheduled)
+      .sort((a, b) => (a.scheduled_start || '').localeCompare(b.scheduled_start || ''))
+      .slice(0, 5);
+  }, [focusMode.taskId, allTasks]);
 
   const unscheduledCount = useMemo(
     () => allTasks.filter((t) => t.status === 'active' && !t.is_scheduled).length,
@@ -190,6 +207,27 @@ function App() {
     });
   };
 
+  // Open Focus Mode on the most relevant active task: prefer a task
+  // scheduled for now or in the near future, then by priority + due date.
+  const handleOpenFocus = useCallback(() => {
+    const priorityRank: Record<string, number> = { ASAP: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
+    const active = allTasks.filter((t) => t.status === 'active');
+    if (active.length === 0) {
+      toast.error('No active tasks to focus on');
+      return;
+    }
+    const sorted = [...active].sort((a, b) => {
+      if (a.scheduled_start && !b.scheduled_start) return -1;
+      if (!a.scheduled_start && b.scheduled_start) return 1;
+      if (a.scheduled_start && b.scheduled_start) return a.scheduled_start.localeCompare(b.scheduled_start);
+      const pa = priorityRank[a.priority] ?? 9;
+      const pb = priorityRank[b.priority] ?? 9;
+      if (pa !== pb) return pa - pb;
+      return (a.due_date || '9999-12-31').localeCompare(b.due_date || '9999-12-31');
+    });
+    setFocusMode({ open: true, taskId: sorted[0].id });
+  }, [allTasks]);
+
   const handleEditTask = (task: Task) => {
     setEditingTask(task);
     setShowTaskDialog(true);
@@ -243,6 +281,19 @@ function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // F8 opens focus mode (the Pomodoro workspace). F8 is rarely bound in
+  // browsers, unlike Cmd+Shift+F which is "Find" in every major browser.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F8' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        handleOpenFocus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleOpenFocus]);
 
   const handleReschedule = async () => {
     setRescheduleLoading(true);
@@ -558,7 +609,10 @@ function App() {
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setShowSettings(true)}
       />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div
+        className="flex-1 flex flex-col min-w-0"
+        inert={focusMode.open && calendar.isAuthenticated ? true : undefined}
+      >
       <Header
         isAuthenticated={calendar.isAuthenticated}
         onDisconnect={calendar.disconnect}
@@ -570,6 +624,7 @@ function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenFocus={handleOpenFocus}
       />
 
       {/* Error banners */}
@@ -774,6 +829,22 @@ function App() {
       />
 
       <VersionBadge />
+
+      {focusMode.open && calendar.isAuthenticated && (
+        <FocusMode
+          open={focusMode.open}
+          currentTask={focusCurrentTask}
+          queue={focusQueue}
+          onClose={() => setFocusMode({ open: false, taskId: null })}
+          onCompleteTask={async (id) => {
+            await tasksHook.complete(id);
+            const next = focusQueue[0];
+            if (next) setFocusMode({ open: true, taskId: next.id });
+            else setFocusMode({ open: false, taskId: null });
+          }}
+          onSwitchTask={(taskId) => setFocusMode({ open: true, taskId })}
+        />
+      )}
       </div>
     </div>
   );
