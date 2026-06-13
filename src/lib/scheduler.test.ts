@@ -14,7 +14,7 @@ import {
   recalculateSchedule,
   type SchedulerConfig,
 } from './scheduler';
-import type { SchedulingSlot, Task } from './types';
+import type { SchedulingSlot } from './types';
 import {
   makeTask,
   makeEvent,

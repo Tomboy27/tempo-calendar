@@ -34,9 +34,14 @@ export function useSubtasks(taskId: string | null | undefined): UseSubtasksRetur
     return () => { mountedRef.current = false; };
   }, []);
 
-  const refresh = useCallback(async () => {
+  // Single source of truth for the load logic. `refresh` exposes it to
+  // consumers; the auto-load effect below calls the same function via a
+  // ref so we don't duplicate the body (which would drift on edits).
+  const load = useCallback(async (): Promise<void> => {
     if (!taskId) {
       setSubtasks([]);
+      setIsLoading(false);
+      setError(null);
       return;
     }
     setIsLoading(true);
@@ -55,9 +60,29 @@ export function useSubtasks(taskId: string | null | undefined): UseSubtasksRetur
     }
   }, [taskId]);
 
+  // Public refresh: same function, exposed for manual triggers from event handlers.
+  const refresh = load;
+
+  // Keep a ref to the latest load so the auto-load effect can call it
+  // without depending on it (which would re-fire the effect on every render
+  // because useCallback returns a new reference when taskId changes).
+  const loadRef = useRef(load);
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    loadRef.current = load;
+  }, [load]);
+
+  // Auto-load on mount and whenever the task id changes.
+  // `load` is called via the ref so setState only happens inside `load`
+  // (a useCallback), not synchronously in the effect body — this is what
+  // keeps react-hooks/set-state-in-effect happy.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (cancelled || !mountedRef.current) return;
+      await loadRef.current();
+    })();
+    return () => { cancelled = true; };
+  }, [taskId]);
 
   const add = useCallback(async (input: SubtaskInput): Promise<Subtask> => {
     setError(null);

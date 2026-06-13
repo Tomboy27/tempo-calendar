@@ -6,7 +6,6 @@ import {
   timeRangesOverlap,
   type RescheduleResult,
 } from './rescheduler';
-import type { Task } from './types';
 import { makeTask, makeEvent, resetIdCounter } from '../test/helpers';
 
 beforeEach(() => {
@@ -20,14 +19,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
 });
-
-const DEFAULT_CONFIG = {
-  defaultStartHour: 9,
-  defaultEndHour: 17,
-  minGapMinutes: 15,
-  includeWeekends: false,
-  defaultHorizonWeeks: 8,
-};
 
 describe('timeRangesOverlap', () => {
   it('detects overlap when ranges intersect', () => {

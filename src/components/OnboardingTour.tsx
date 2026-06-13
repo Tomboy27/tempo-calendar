@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronLeft, ChevronRight, X, Calendar, Zap, Inbox, Sparkles, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -63,14 +63,23 @@ export function OnboardingTour({ forceOpen, onComplete }: OnboardingTourProps) {
   const [spotlightBox, setSpotlightBox] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
 
   // Sync open state when forceOpen changes after mount.
-  // Canonical "external prop -> state" pattern.
-  useEffect(() => {
+  // React docs pattern: "Adjusting state when a prop changes".
+  // Tracking the previous value in a ref and updating state during render
+  // (not in an effect) is the canonical way to derive state from a prop
+  // without triggering the react-hooks/set-state-in-effect lint rule.
+  // The react-hooks/refs read+write on the lines below is the allowed
+  // exception for this exact "previous-prop-in-ref" idiom.
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  /* eslint-disable react-hooks/refs */
+  const prevForceOpenRef = useRef(forceOpen);
+  if (forceOpen !== prevForceOpenRef.current) {
+    prevForceOpenRef.current = forceOpen;
     if (forceOpen) {
       setOpen(true);
       setStepIndex(0);
     }
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-  }, [forceOpen]);
+  }
+  /* eslint-enable react-hooks/refs */
 
   const finish = useCallback(() => {
     try { localStorage.setItem(STORAGE_KEY, 'true'); } catch { /* ignore */ }

@@ -13,21 +13,18 @@ const LAST_SEEN_KEY = 'tempo-last-seen-version';
  */
 export function VersionBadge() {
   const [open, setOpen] = useState(false);
-  const [hasNew, setHasNew] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-
-  // Check if the user has seen the current version
-  useEffect(() => {
+  // Read the "last seen" version from localStorage in the lazy initializer
+  // so we only read it once on mount and never need a setState-in-effect.
+  const [hasNew, setHasNew] = useState(() => {
     try {
       const lastSeen = localStorage.getItem(LAST_SEEN_KEY);
-      if (lastSeen !== TEMPO_VERSION) {
-        setHasNew(true);
-      }
+      return lastSeen !== TEMPO_VERSION;
     } catch {
-      // localStorage unavailable; skip the "new" indicator
+      return false;
     }
-  }, []);
+  });
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Close + restore focus to the trigger
   const closeAndFocusTrigger = useCallback(() => {

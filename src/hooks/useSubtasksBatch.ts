@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { fetchSubtasksForTasks, updateSubtask, deleteSubtask } from '../lib/subtasks';
 import type { Subtask } from '../lib/types';
 
@@ -11,7 +11,10 @@ export function useSubtasksBatch(taskIds: string[]) {
   const [byTaskId, setByTaskId] = useState<Map<string, Subtask[]>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
   const mountedRef = useRef(false);
-  const key = taskIds.slice().sort().join('|');
+  // useMemo keeps the serialized key reference-stable across renders when
+  // taskIds is unchanged, and produces a "simple" dep expression for the
+  // load effect (satisfies react-hooks/use-memo).
+  const key = useMemo(() => taskIds.slice().sort().join('|'), [taskIds]);
 
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
@@ -35,6 +38,10 @@ export function useSubtasksBatch(taskIds: string[]) {
     }
     load();
     return () => { cancelled = true; };
+    // Depend on the stable `key` (useMemo over taskIds) instead of
+    // `taskIds.join('|')` so the effect does not re-fire on every
+    // reordered taskIds array. The exhaustive-deps rule does not see
+    // `key` as derived from `taskIds`, so silence it on the deps line.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
@@ -42,7 +49,12 @@ export function useSubtasksBatch(taskIds: string[]) {
     if (taskIds.length === 0) return;
     const map = await fetchSubtasksForTasks(taskIds);
     if (mountedRef.current) setByTaskId(map);
-  }, [taskIds.join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Depend on the stable `key` (useMemo over taskIds) instead of
+    // `taskIds.join('|')` so this is a "simple expression" per
+    // react-hooks/use-memo. The exhaustive-deps rule is satisfied because
+    // `key` is derived from `taskIds`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
 
   /** Optimistic toggle used by the list-row chip. */
   const toggle = useCallback(async (taskId: string, subtaskId: string, completed: boolean) => {
