@@ -1,15 +1,41 @@
-import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, createContext, useContext, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
+
+/**
+ * Calendar scopes requested during Supabase Google OAuth. These are
+ * forwarded to the underlying Google auth flow by Supabase, and the
+ * resulting `provider_token` is what the app uses to call the
+ * Google Calendar REST API. By piggybacking on Supabase's OAuth
+ * (instead of GIS popups), we sidestep Chrome 131+'s third-party
+ * cookie / popup blocker issues entirely.
+ */
+const GOOGLE_CALENDAR_SCOPES = [
+  'https://www.googleapis.com/auth/calendar.readonly',
+  'https://www.googleapis.com/auth/calendar.events',
+].join(' ');
 
 interface AuthContextValue {
   user: User | null;
   session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  /**
+   * The Google access token attached to the current Supabase session, or
+   * `null` if the user signed in with email/password (or hasn't signed in).
+   * Use this to call the Google Calendar REST API directly.
+   */
+  googleAccessToken: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  /**
+   * Triggers Google OAuth with Calendar scopes and returns. Use this for
+   * the in-app "Connect Calendar" button when the user is already signed
+   * in via Supabase (any provider) but doesn't yet have a Google access
+   * token. If the user is not signed in, prefer `signInWithGoogle` instead.
+   */
+  connectGoogleCalendar: () => Promise<void>;
   signOut: () => Promise<void>;
   error: string | null;
   clearError: () => void;
@@ -92,12 +118,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = useCallback(async () => {
     if (!supabase) throw new Error('Supabase is not configured');
     setError(null);
-    // Note: Calendar scopes are handled by the separate Google Calendar GIS integration.
-    // Supabase Google OAuth is used here only for identity/authentication.
+    // Request Calendar scopes during the initial sign-in. Supabase's Google
+    // OAuth flow runs server-side and returns a session with `provider_token`
+    // (a Google access token) and `provider_refresh_token`. We use the
+    // access token directly to call the Google Calendar REST API — this
+    // sidesteps Chrome 131+'s third-party cookie / popup blockers that
+    // break the legacy GIS popup flow.
     const { error: err } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
+        scopes: GOOGLE_CALENDAR_SCOPES,
+        queryParams: {
+          // Always show the account picker so users on shared computers can
+          // sign in with a different Google account without signing out of
+          // the browser. The default (`select_account`) is already this
+          // behavior, but we set it explicitly to make the intent clear.
+          prompt: 'select_account',
+        },
+      },
+    });
+    if (err) {
+      if (mountedRef.current) setError(err.message);
+      throw err;
+    }
+  }, []);
+
+  const connectGoogleCalendar = useCallback(async () => {
+    if (!supabase) throw new Error('Supabase is not configured');
+    setError(null);
+    // Same OAuth call as sign-in, but exposed separately for the
+    // "Connect Calendar" button on the calendar-gated screen. Calling
+    // signInWithOAuth while already signed in (with any provider) links
+    // the Google identity and refreshes the session with a new
+    // `provider_token` that includes the Calendar scopes.
+    const { error: err } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+        scopes: GOOGLE_CALENDAR_SCOPES,
+        queryParams: { prompt: 'select_account' },
       },
     });
     if (err) {
@@ -120,14 +180,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearError = useCallback(() => setError(null), []);
 
+  /**
+   * The Google access token attached to the current session, or null if
+   * the user signed in with email/password. Recomputed on every session
+   * change so consumers see fresh tokens.
+   */
+  const googleAccessToken = useMemo<string | null>(
+    () => (session?.provider_token as string | undefined) ?? null,
+    [session]
+  );
+
   const value: AuthContextValue = {
     user,
     session,
     isLoading,
     isAuthenticated: !!user,
+    googleAccessToken,
     signIn,
     signUp,
     signInWithGoogle,
+    connectGoogleCalendar,
     signOut,
     error,
     clearError,

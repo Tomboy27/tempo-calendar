@@ -15,7 +15,7 @@ import { VersionBadge } from './components/VersionBadge';
 import { Button } from './components/ui/button';
 import { LeftRail } from './components/LeftRail';
 import { ProductPreviewMock } from './components/ProductPreviewMock';
-import { AlertCircle, Link2, RefreshCw, LogIn, Zap, Settings2, Calendar, Sparkles, ArrowRight, BarChart3, Layers, Copy, ExternalLink, Check } from 'lucide-react';
+import { AlertCircle, Link2, RefreshCw, LogIn, Zap, Settings2, Calendar, Sparkles, ArrowRight, BarChart3, Layers } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { format } from 'date-fns';
 import { detectConflicts } from './lib/rescheduler';
@@ -73,7 +73,11 @@ function useWorkingHours(): [WorkingHoursState, (h: WorkingHoursState) => void] 
 
 function App() {
   const auth = useAuth();
-  const calendar = useGoogleCalendar();
+  // `useGoogleCalendar` now consumes the Google access token from the
+  // Supabase session directly (no GIS popups). The token is null until
+  // the user signs in via Supabase Google OAuth, at which point the
+  // hook auto-fetches events.
+  const calendar = useGoogleCalendar({ accessToken: auth.googleAccessToken });
   const tasksHook = useTasks();
   const { theme, toggleTheme, setTheme, useSystemTheme } = useTheme();
   // (useSystemTheme is passed to SettingsPanel below)
@@ -219,6 +223,20 @@ function App() {
       await tasksHook.reschedule(calendar.events);
     } finally {
       setRescheduleLoading(false);
+    }
+  };
+
+  /**
+   * Trigger a Supabase Google OAuth re-auth with Calendar scopes. The
+   * page will redirect to Google; on return, the session will include
+   * a `provider_token` that flows into `auth.googleAccessToken` and
+   * the calendar auto-connects.
+   */
+  const handleConnectCalendar = async () => {
+    try {
+      await auth.connectGoogleCalendar();
+    } catch (err) {
+      console.error('[App] Failed to start Google Calendar OAuth:', err);
     }
   };
 
@@ -445,7 +463,7 @@ function App() {
 
               <div className="mt-8 flex items-center gap-3 flex-wrap">
                 <Button
-                  onClick={calendar.connect}
+                  onClick={handleConnectCalendar}
                   disabled={calendar.isLoading}
                   size="lg"
                   className="h-12 px-6 gap-2 text-sm font-semibold shadow-sm"
@@ -455,7 +473,7 @@ function App() {
                   <ArrowRight className="w-4 h-4" />
                 </Button>
                 <span className="text-xs text-muted-foreground">
-                  Read-only access. You can disconnect anytime.
+                  You&rsquo;ll be redirected to Google to grant read access. You can disconnect anytime.
                 </span>
               </div>
 
@@ -465,11 +483,6 @@ function App() {
                     <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
                     <p className="text-sm text-destructive text-left leading-relaxed">{calendar.error.message}</p>
                   </div>
-                  {calendar.error.code === 'ORIGIN_NOT_AUTHORIZED' && (
-                    // `connect()` already calls setError(null) as its first line,
-                    // so we don't need to disconnect first.
-                    <OriginNotAuthorizedHelp onRecheck={calendar.connect} />
-                  )}
                 </div>
               )}
             </div>
@@ -506,7 +519,7 @@ function App() {
         isLoaded={calendar.isLoaded}
         isLoading={calendar.isLoading}
         error={calendar.error?.message ?? null}
-        onConnect={calendar.connect}
+        onConnect={handleConnectCalendar}
         onDisconnect={calendar.disconnect}
         onRefresh={calendar.refreshEvents}
         onScheduleAll={handleScheduleAll}
@@ -716,178 +729,5 @@ function App() {
   );
 }
 
-/**
- * Inline helper shown when the Google sign-in fails with
- * `ORIGIN_NOT_AUTHORIZED` (the GIS `popup_failed_to_open` error).
- * The most common cause is that the current origin isn't listed under
- * "Authorized JavaScript origins" on the Google OAuth Client ID.
- *
- * Renders a one-click "Copy origin" button (with a graceful fallback when
- * the Clipboard API is unavailable) and a direct link to the Google Cloud
- * Console credentials page.
- */
-function OriginNotAuthorizedHelp({ onRecheck }: { onRecheck?: () => void }) {
-  const [copied, setCopied] = useState(false);
-  // Use a ref (not state) so the timestamp can be read synchronously inside
-  // the diagnostic dump without waiting for a re-render after Recheck.
-  // Initialized to 0; set to Date.now() in the mount effect below to avoid
-  // the `react-hooks/purity` lint rule (which flags `Date.now()` in any
-  // hook initializer, even though useRef only consumes the initial value once).
-  const attemptedAtRef = useRef<number>(0);
-  const timeoutRef = useRef<number | null>(null);
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  // Show a short prefix so the user can verify they're using the right
-  // Client ID (full ID is sensitive but the prefix + length is enough to
-  // disambiguate multiple Client IDs in the same GCP project).
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-  const clientIdPrefix = clientId ? `${clientId.slice(0, 24)}…` : '(not set)';
-
-  // Set the attempt timestamp on mount (replaces the ref initializer so
-  // we don't trigger the purity lint rule), and clean up the copy-state
-  // timer on unmount.
-  useEffect(() => {
-    attemptedAtRef.current = Date.now();
-    return () => {
-      if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
-    };
-  }, []);
-
-  const handleRecheck = () => {
-    // Update the ref synchronously so the next diagnostic dump reflects the
-    // new attempt time, even if the parent hasn't re-rendered yet.
-    attemptedAtRef.current = Date.now();
-    onRecheck?.();
-  };
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(origin);
-      setCopied(true);
-      if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
-      timeoutRef.current = window.setTimeout(() => {
-        setCopied(false);
-        timeoutRef.current = null;
-      }, 2000);
-    } catch (err) {
-      console.warn('[OriginNotAuthorizedHelp] Copy failed:', err);
-    }
-  };
-
-  const handleCopyDiag = () => {
-    const attemptedAt = attemptedAtRef.current;
-    const minutesAgo = Math.max(0, Math.floor((Date.now() - attemptedAt) / 60000));
-    const diag = [
-      `Error code: ORIGIN_NOT_AUTHORIZED (GIS popup_failed_to_open)`,
-      `Last attempted at: ${new Date(attemptedAt).toISOString()} (${new Date(attemptedAt).toLocaleString()})`,
-      `Minutes since last attempt: ${minutesAgo}`,
-      `Origin: ${origin}`,
-      `Client ID: ${clientId || '(not set)'}`,
-      `URL: ${typeof window !== 'undefined' ? window.location.href : ''}`,
-      `User Agent: ${typeof navigator !== 'undefined' ? navigator.userAgent : ''}`,
-      ``,
-      `Verification checklist:`,
-      `  1. In Cloud Console (https://console.cloud.google.com/apis/credentials), find the OAuth Client ID above`,
-      `  2. Open it and confirm "Authorized JavaScript origins" includes EXACTLY: ${origin}`,
-      `  3. Wait 5-60 min if you just added it (Google propagation delay)`,
-      `  4. Hard-refresh this page (Ctrl/Cmd+Shift+R) and click Recheck`,
-      ``,
-      `If all of the above match and it's been >15 min:`,
-      `  5. Vercel env check: run \`vercel env ls\` in the project and confirm`,
-      `     VITE_GOOGLE_CLIENT_ID is set to the same Client ID above, with NO`,
-      `     leading/trailing whitespace, for the Production environment.`,
-      `  6. Vercel env pull: run \`vercel env pull .env.local\` and grep`,
-      `     VITE_GOOGLE_CLIENT_ID .env.local to see the exact deployed value.`,
-      `  7. If you JUST added the env var, you must trigger a redeploy`,
-      `     (Vite reads env vars at build time): \`vercel --prod --yes\``,
-      `     or push a commit / click "Redeploy" in Vercel dashboard.`,
-      `  8. Browser check: try a different browser / incognito window in case`,
-      `     a browser extension or corporate policy is blocking the popup.`,
-      ``,
-      `If you're on Chrome 149+ and the popup still won't open:`,
-      `  The error name "popup_failed_to_open" is misleading — it can also`,
-      `  fire when the popup opens but Google can't complete the OAuth flow`,
-      `  because third-party cookies are blocked. Chrome has been rolling out`,
-      `  "Tracking Protection" (Settings → Privacy and security → Tracking`,
-      `  protection), which blocks third-party cookies by default in Incognito`,
-      `  and increasingly in normal browsing. GIS depends on those cookies.`,
-      `  `,
-      `  Quick test: open this exact URL in Firefox/Safari and try again.`,
-      `  If it works there, the issue is Chrome's cookie policy, NOT the`,
-      `  OAuth configuration.`,
-      `  `,
-      `  Fixes (in order of preference):`,
-      `  a. Add tempo-calendar-tomers-team.vercel.app as a "Sites that can`,
-      `     always use cookies" exception: chrome://settings/trackingProtection`,
-      `     → Advanced → "Sites that can always use cookies" → Add.`,
-      `  b. Temporarily disable Tracking Protection: chrome://settings/trackingProtection`,
-      `     → switch from "Standard" to "Custom" and uncheck "Block third-party`,
-      `     cookies" (only for testing).`,
-      `  c. Use a different browser (Firefox works without this issue).`,
-      `  d. As a last resort, switch the auth flow to FedCM-based GIS via`,
-      `     chrome://flags/#fedcm-without-third-party-cookies — this requires`,
-      `     a code change, not a config fix.`,
-    ].join('\n');
-    // Drop the inline "Copied" state on this button — the console.log +
-    // clipboard write is enough confirmation, and avoids confusing the user
-    // with two "Copied" labels (one for the origin button, one for this one).
-    navigator.clipboard.writeText(diag).catch((err) => {
-      console.warn('[OriginNotAuthorizedHelp] Diagnostic copy failed:', err);
-    });
-    // eslint-disable-next-line no-console
-    console.info('[Google OAuth Diagnostic]\n' + diag);
-  };
-
-  return (
-    <div className="pl-6 space-y-2">
-      <div className="flex items-center gap-2 flex-wrap">
-        <button
-          type="button"
-          onClick={handleCopy}
-          aria-label="Copy current origin to clipboard"
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent transition-colors"
-        >
-          {copied ? <><Check className="w-3 h-3" />Copied</> : <><Copy className="w-3 h-3" />Copy origin</>}
-        </button>
-        {onRecheck && (
-          <button
-            type="button"
-            onClick={handleRecheck}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent transition-colors"
-          >
-            <RefreshCw className="w-3 h-3" />
-            Recheck
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={handleCopyDiag}
-          aria-label="Copy diagnostic info to clipboard"
-          title="Copies origin, client ID, URL, and user agent. Also logs to the browser console."
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent transition-colors"
-        >
-          <Copy className="w-3 h-3" />
-          Copy diagnostic
-        </button>
-        <a
-          href="https://console.cloud.google.com/apis/credentials"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground hover:bg-destructive/90 transition-colors"
-        >
-          Open Google Cloud Console
-          <ExternalLink className="w-3 h-3" />
-        </a>
-      </div>
-      <div className="flex items-center gap-3 flex-wrap text-[11px] font-mono text-muted-foreground">
-        <span><span className="text-muted-foreground/60">origin:</span> <code className="bg-muted/60 px-1.5 py-0.5 rounded">{origin}</code></span>
-        <span><span className="text-muted-foreground/60">client id:</span> <code className="bg-muted/60 px-1.5 py-0.5 rounded">{clientIdPrefix}</code></span>
-      </div>
-      <p className="text-[11px] text-muted-foreground leading-relaxed">
-        Note: changes to Authorized JavaScript origins can take <strong>5–60 minutes</strong> to propagate on Google's side.
-        Hard-refresh the page (Ctrl/Cmd+Shift+R) after editing, and verify the origin above exactly matches the one you added in Cloud Console.
-      </p>
-    </div>
-  );
-}
-
 export default App;
+
