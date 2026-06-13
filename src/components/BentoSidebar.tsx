@@ -11,7 +11,6 @@ import {
   startOfDay,
   endOfDay,
   isWithinInterval,
-  subDays,
 } from 'date-fns';
 import {
   Plus,
@@ -28,6 +27,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { Task } from '../lib/types';
+import { computeCurrentStreak } from '../lib/analytics';
 
 interface BentoSidebarProps {
   tasks: Task[];
@@ -269,41 +269,8 @@ function NowCard({ current, upNext, onSelect }: { current: Task | null; upNext: 
 
 // ============================================================
 // StreakCard — consecutive completion days
+// (computation lives in `lib/analytics` so the AnalyticsPanel can reuse it)
 // ============================================================
-
-/**
- * Compute the user's current streak: the number of consecutive days,
- * counting backwards from today, where at least one task was completed.
- * If today has no completions yet, the streak from yesterday is still
- * considered "alive" (you haven't broken it until tomorrow).
- */
-function computeCurrentStreak(tasks: Task[]): number {
-  const dates = new Set<string>();
-  for (const t of tasks) {
-    if (t.completion_history) {
-      for (const d of t.completion_history) {
-        // Accept either ISO datetime or YYYY-MM-DD
-        dates.add(d.length >= 10 ? d.slice(0, 10) : d);
-      }
-    }
-    if (t.completed_at) {
-      dates.add(t.completed_at.slice(0, 10));
-    }
-  }
-  if (dates.size === 0) return 0;
-
-  let cursor = new Date();
-  // If today isn't in the set, start from yesterday (streak still alive)
-  if (!dates.has(format(cursor, 'yyyy-MM-dd'))) {
-    cursor = subDays(cursor, 1);
-  }
-  let streak = 0;
-  while (dates.has(format(cursor, 'yyyy-MM-dd'))) {
-    streak++;
-    cursor = subDays(cursor, 1);
-  }
-  return streak;
-}
 
 function StreakCard({ streak }: { streak: number }) {
   const isAlive = streak > 0;

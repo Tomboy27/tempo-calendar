@@ -17,6 +17,7 @@ import { VersionBadge } from './components/VersionBadge';
 import { FocusMode } from './components/FocusMode';
 import { Button } from './components/ui/button';
 import { LeftRail } from './components/LeftRail';
+import { AnalyticsPanel } from './components/AnalyticsPanel';
 import { ProductPreviewMock } from './components/ProductPreviewMock';
 import { AlertCircle, Link2, RefreshCw, LogIn, Zap, Settings2, Calendar, Sparkles, ArrowRight, BarChart3, Layers } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
@@ -117,7 +118,7 @@ function App() {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [activeView, setActiveView] = useState<'calendar' | 'tasks'>('calendar');
+  const [activeView, setActiveView] = useState<'calendar' | 'tasks' | 'insights'>('calendar');
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [tempoView, setTempoView] = useState<'day' | 'week' | 'month'>('week');
@@ -702,7 +703,7 @@ function App() {
         {/* Calendar workspace */}
         <div
           data-onboarding="calendar"
-          className={`flex-1 flex flex-col min-w-0 p-3 gap-3 ${activeView === 'calendar' ? '' : 'hidden lg:flex'}`}
+          className={`flex-1 flex flex-col min-w-0 p-3 gap-3 ${activeView === 'calendar' ? '' : activeView === 'insights' ? 'hidden' : 'hidden lg:flex'}`}
         >
           <TempoCalendar
             events={tempoEvents}
@@ -716,10 +717,10 @@ function App() {
           />
         </div>
 
-        {/* Sidebar — Bento on calendar view, full TaskList on tasks view */}
+        {/* Sidebar — Bento on calendar view, full TaskList on tasks view, hidden on insights */}
         <div
           data-onboarding="quick-add"
-          className={`w-80 lg:w-[360px] border-l border-border flex flex-col shrink-0 bg-card ${activeView === 'tasks' ? '' : 'hidden lg:flex'}`}
+          className={`w-80 lg:w-[360px] border-l border-border flex flex-col shrink-0 bg-card ${activeView === 'calendar' ? '' : 'hidden lg:flex'} ${activeView === 'insights' ? 'lg:hidden' : ''}`}
         >
           {activeView === 'calendar' ? (
             <BentoSidebar
@@ -733,7 +734,7 @@ function App() {
               onScheduleAll={handleScheduleAll}
               isScheduling={rescheduleLoading}
             />
-          ) : (
+          ) : activeView === 'tasks' ? (
             <TaskList
               tasks={tasksHook.tasks}
               isLoading={tasksHook.isLoading}
@@ -748,8 +749,16 @@ function App() {
               onBackToCalendar={() => setActiveView('calendar')}
               subtasksByTaskId={subtasksBatch.byTaskId}
             />
-          )}
+          ) : null}
         </div>
+
+        {/* Insights view — full-screen analytics panel */}
+        {activeView === 'insights' && (
+          <AnalyticsPanel
+            tasks={tasksHook.tasks}
+            onClose={() => setActiveView('calendar')}
+          />
+        )}
       </div>
 
       {/* Dialogs */}

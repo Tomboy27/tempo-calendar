@@ -1,9 +1,9 @@
-import { Calendar, ListTodo, Settings as SettingsIcon, LogOut, User, Unlink, Sun, Moon, Sparkles, RefreshCw, Link2, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Calendar, ListTodo, BarChart3, Settings as SettingsIcon, LogOut, User, Unlink, Sun, Moon, Sparkles, RefreshCw, Link2, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../lib/utils';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
-export type LeftRailView = 'calendar' | 'tasks';
+export type LeftRailView = 'calendar' | 'tasks' | 'insights';
 
 interface LeftRailProps {
   activeView: LeftRailView;
@@ -102,6 +102,12 @@ export function LeftRail({
             active={activeView === 'tasks'}
             onClick={() => onViewChange('tasks')}
             badge={unscheduledCount > 0 ? unscheduledCount : undefined}
+          />
+          <RailItem
+            icon={BarChart3}
+            label="Insights"
+            active={activeView === 'insights'}
+            onClick={() => onViewChange('insights')}
           />
           <RailDivider />
           <RailItem
