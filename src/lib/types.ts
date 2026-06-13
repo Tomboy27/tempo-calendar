@@ -192,6 +192,7 @@ export interface Subtask {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  completed_at: string | null;
 }
 
 export interface SubtaskInput {
@@ -200,11 +201,15 @@ export interface SubtaskInput {
   sort_order?: number;
 }
 
-export type SubtaskUpdate = {
-  title?: string;
-  completed?: boolean;
-  sort_order?: number;
-};
+/**
+ * Fields that may be patched on a subtask. `id`, `task_id`, `created_at`,
+ * `updated_at`, and `completed_at` are intentionally excluded from the
+ * Pick — the type system (not just a comment) prevents reparenting
+ * (would break the ON DELETE CASCADE invariant) and prevents callers
+ * from bypassing the DB triggers that manage `completed_at` and
+ * `updated_at`.
+ */
+export type SubtaskUpdate = Partial<Pick<Subtask, 'title' | 'completed' | 'sort_order'>>;
 
 // ============================================================
 // Calendar Provider Abstraction
