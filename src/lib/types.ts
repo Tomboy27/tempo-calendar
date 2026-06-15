@@ -1,5 +1,5 @@
 export type TaskPriority = 'ASAP' | 'HIGH' | 'NORMAL' | 'LOW';
-export type TaskFrequency = 'once' | 'daily' | 'weekly' | 'custom';
+export type TaskFrequency = 'once' | 'daily' | 'weekly';
 export type TaskStatus = 'active' | 'completed' | 'missed' | 'skipped';
 
 export interface Task {
@@ -16,6 +16,7 @@ export interface Task {
   due_date: string | null;
   due_time: string | null;
   deadline: string | null;
+  recurrence_end: string | null;
 
   // Priority
   priority: TaskPriority;
@@ -96,6 +97,16 @@ export interface Task {
   // Tracking timestamps
   last_scheduled_at: string | null;
   last_missed_at: string | null;
+
+  // Per-occurrence overrides for repeating tasks (JSONB map keyed by date)
+  occurrence_overrides: Record<string, OccurrenceOverride> | null;
+}
+
+export interface OccurrenceOverride {
+  scheduled_start?: string;
+  scheduled_end?: string;
+  status?: TaskStatus;
+  notes?: string;
 }
 
 export interface TimeWindow {

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { GoogleEvent, CalendarEvent } from '../lib/google';
+import type { GoogleEvent, CalendarEvent, GoogleCalendar } from '../lib/google';
 import {
   fetchCalendarEvents,
+  fetchCalendarList,
   setAccessToken,
   clearAccessToken,
   GoogleAuthError,
@@ -45,6 +46,12 @@ interface UseGoogleCalendarReturn {
   events: CalendarEvent[];
   /** Timestamp of the most recent successful fetch, or null. */
   lastSyncAt: Date | null;
+  /** All available Google calendars for the user. */
+  calendars: GoogleCalendar[];
+  /** Which calendars are currently selected for syncing. */
+  selectedCalendarIds: string[];
+  /** Select/deselect a calendar for syncing. */
+  toggleCalendarSelection: (calendarId: string) => void;
   /**
    * No-op for API compatibility. Calendar connection now happens
    * automatically as soon as the user signs in to Supabase via Google,
@@ -55,18 +62,18 @@ interface UseGoogleCalendarReturn {
   connect: () => Promise<void>;
   /** Disconnect by clearing the in-memory token. Does not affect Supabase session. */
   disconnect: () => void;
-  /** Re-fetch calendar events using the current token. */
-  refreshEvents: () => Promise<void>;
+  /** Re-fetch calendar events using the current token. Optionally pass the visible calendar range. */
+  refreshEvents: (range?: { start: Date; end: Date }) => Promise<void>;
 }
 
-function mapGoogleEvent(event: GoogleEvent): CalendarEvent {
+function mapGoogleEvent(event: GoogleEvent, calendarId: string): CalendarEvent {
   return {
     id: event.id,
     title: event.summary,
     description: event.description || '',
     startTime: event.start.dateTime || event.start.date || '',
     endTime: event.end.dateTime || event.end.date || '',
-    calendar: 'primary',
+    calendar: calendarId,
     source: 'google',
     color: event.colorId ? getColorFromId(event.colorId) : undefined,
   };
@@ -98,6 +105,19 @@ export function useGoogleCalendar({
   const [error, setError] = useState<GoogleAuthError | null>(null);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
+  const [calendars, setCalendars] = useState<GoogleCalendar[]>([]);
+  const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('tempo-selected-calendars');
+      return stored ? JSON.parse(stored) : ['primary'];
+    } catch {
+      return ['primary'];
+    }
+  });
+  // Mirror selectedCalendarIds into a ref so fetchAndSetEvents can read
+  // the latest selection without rebuilding the callback every time.
+  const selectedCalendarIdsRef = useRef(selectedCalendarIds);
+  useEffect(() => { selectedCalendarIdsRef.current = selectedCalendarIds; }, [selectedCalendarIds]);
   // `disconnect()` is a local action that flips the derived
   // `isAuthenticated` to false without requiring the parent to clear the
   // `accessToken` prop. We keep BOTH a state (for the public flag, which
@@ -118,27 +138,52 @@ export function useGoogleCalendar({
   // fetchAndSetEvents closure doesn't need to be rebuilt when it changes.
   const onEventsDeletedRef = useRef(onEventsDeleted);
   useEffect(() => { onEventsDeletedRef.current = onEventsDeleted; }, [onEventsDeleted]);
+  // Visible range ref so polling and manual refresh can use the current
+  // window without rebuilding the fetch callback.
+  const visibleRangeRef = useRef<{ start: Date; end: Date } | null>(null);
   // Mirror `disconnected` into a ref so internal callers (the fetch
   // closure and the polling interval) can read the latest value without
   // listing `disconnected` in their dependency arrays. This is the only
   // place that owns the mirror, preventing drift between state and ref.
   useEffect(() => { disconnectedRef.current = disconnected; }, [disconnected]);
 
-  const fetchAndSetEvents = useCallback(async () => {
+  /**
+   * Fetch calendar events. Optionally pass a visible range so events
+   * are fetched for the exact window the user is looking at instead of
+   * the hardcoded default (now + 7 days).
+   */
+  const fetchAndSetEvents = useCallback(async (range?: { start: Date; end: Date }) => {
     if (disconnectedRef.current) return;
     setError(null);
     setIsLoading(true);
     try {
-      console.log('[useGoogleCalendar] Fetching calendar events with Supabase-provided token');
-      const googleEvents = await fetchCalendarEvents();
-      const mapped = googleEvents.map(mapGoogleEvent);
-      // Diff against the previous fetch to find events that disappeared
-      // (i.e. the user deleted them in Google Calendar between polls).
-      // The catch block below never calls `onEventsDeleted`, so a transient
-      // fetch failure (network blip, auth glitch) can't fire a false
-      // "delete everything" event from this path. We do, however, gate on
-      // a non-empty baseline so the very first fetch after sign-in doesn't
-      // report "all events deleted" when the ref starts empty.
+      // Fetch events from ALL selected calendars, not just primary.
+      const idsToFetch = selectedCalendarIdsRef.current.length > 0 ? selectedCalendarIdsRef.current : ['primary'];
+      // Fetching events from selected calendars
+      const allGoogleEvents: Array<{ event: GoogleEvent; calendarId: string }> = [];
+      const perCalendarErrors: string[] = [];
+      // Fetch in parallel — each calendar is independent.
+      const timeMin = range?.start.toISOString();
+      const timeMax = range?.end.toISOString();
+      const results = await Promise.allSettled(
+        idsToFetch.map((calId) => fetchCalendarEvents(calId, timeMin, timeMax).then((evts) => ({ calId, evts })))
+      );
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        const calId = idsToFetch[i];
+        if (result.status === 'fulfilled') {
+          for (const ev of result.value.evts) {
+            allGoogleEvents.push({ event: ev, calendarId: result.value.calId });
+          }
+        } else {
+          const calErr = result.reason;
+          // Failed to fetch calendar — error recorded in perCalendarErrors
+          const label = calErr instanceof GoogleAuthError ? calErr.message : String(calErr);
+          perCalendarErrors.push(`${calId}: ${label}`);
+        }
+      }
+      const mapped = allGoogleEvents.map((item) => mapGoogleEvent(item.event, item.calendarId));
+      // Diff against the previous fetch to find events that disappeared.
       const newIds = new Set(mapped.map((e) => e.id));
       const deletedIds: string[] = [];
       for (const prevId of previousGoogleEventIdsRef.current) {
@@ -146,22 +191,22 @@ export function useGoogleCalendar({
       }
       const hasBaseline = previousGoogleEventIdsRef.current.size > 0;
       if (hasBaseline && deletedIds.length > 0) {
-        console.log(`[useGoogleCalendar] Detected ${deletedIds.length} deleted Google event(s)`, deletedIds);
+        // Detected deleted Google events
         onEventsDeletedRef.current?.(deletedIds);
       }
       previousGoogleEventIdsRef.current = newIds;
       setEvents(mapped);
       setLastSyncAt(new Date());
-      console.log(`[useGoogleCalendar] Loaded ${mapped.length} events`);
+      // Events loaded successfully
+      // Surface per-calendar errors as a single error message so the UI can show them.
+      if (perCalendarErrors.length > 0 && perCalendarErrors.length < idsToFetch.length) {
+        setError(new GoogleAuthError(
+          `Some calendars failed to sync: ${perCalendarErrors.join('; ')}`
+        ));
+      }
     } catch (err: unknown) {
-      console.error('[useGoogleCalendar] Failed to fetch events:', err);
+      // Failed to fetch events — error surfaced via state
       if (err instanceof GoogleAuthError) {
-        // The REST helpers throw `GoogleAuthError` with a message that
-        // encodes the HTTP status for 4xx responses. Re-wrap 401s with a
-        // friendlier "session expired" message; pass everything else
-        // through unchanged. Also clear the in-memory token so the next
-        // call fails fast with "Not authenticated" instead of retrying
-        // with the same dead token (and surfacing the same 401).
         if (/401|invalid[_\s-]?token|expired|unauthor/i.test(err.message)) {
           clearAccessToken();
           setError(new GoogleAuthError(
@@ -175,12 +220,6 @@ export function useGoogleCalendar({
           err instanceof Error ? err.message : 'Failed to fetch calendar events'
         ));
       }
-      // Intentionally do NOT clear `events` or update
-      // `previousGoogleEventIdsRef` on error. A transient error would
-      // otherwise make the next successful fetch look like "every event
-      // reappeared" or, worse, cause a false "deletion" of the entire
-      // calendar. Keeping the previous state lets the next successful
-      // fetch reconcile naturally.
     } finally {
       setIsLoading(false);
     }
@@ -192,7 +231,6 @@ export function useGoogleCalendar({
   // to gate everything on a user action, which would leave the calendar
   // empty until the first interaction. The setState calls below are
   // legitimate and short-circuited by `lastTokenRef` to avoid loops.
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (accessToken === lastTokenRef.current) return;
     lastTokenRef.current = accessToken;
@@ -206,17 +244,18 @@ export function useGoogleCalendar({
     previousGoogleEventIdsRef.current = new Set();
 
     if (accessToken) {
-      console.log('[useGoogleCalendar] Supabase session has a Google access token, syncing');
+      // Supabase session has Google access token — syncing
       setAccessToken(accessToken);
-      void fetchAndSetEvents();
+      // Use the stored visible range if available; otherwise let the
+      // Google API use its default (now + 7 days) for the first fetch.
+      void fetchAndSetEvents(visibleRangeRef.current ?? undefined);
     } else {
-      console.log('[useGoogleCalendar] No Google access token in session, clearing');
+      // No Google access token in session — clearing
       clearAccessToken();
       setEvents([]);
       setLastSyncAt(null);
     }
   }, [accessToken, fetchAndSetEvents]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Polling for external changes (two-way sync). Only runs when
   // authenticated, not while disconnected, not while the tab is hidden,
@@ -229,8 +268,10 @@ export function useGoogleCalendar({
     const id = window.setInterval(() => {
       if (disconnectedRef.current) return;
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-      console.log('[useGoogleCalendar] Polling for external changes');
-      void fetchAndSetEvents();
+      // Polling for external changes — use the stored visible range so
+      // we don't fetch a hardcoded window while the user is looking at
+      // a different month or week.
+      void fetchAndSetEvents(visibleRangeRef.current ?? undefined);
     }, pollIntervalMs);
     return () => window.clearInterval(id);
   }, [accessToken, pollIntervalMs, fetchAndSetEvents]);
@@ -242,13 +283,11 @@ export function useGoogleCalendar({
    * new `provider_token` (which flows back through the accessToken prop).
    */
   const connect = useCallback(async () => {
-    console.warn(
-      '[useGoogleCalendar] connect() is a no-op. Use auth.connectGoogleCalendar() to trigger a Google OAuth re-auth.'
-    );
+    // connect() is a no-op — use auth.connectGoogleCalendar() to trigger a Google OAuth re-auth
   }, []);
 
   const disconnect = useCallback(() => {
-    console.log('[useGoogleCalendar] Disconnecting (clearing in-memory Google token only)');
+    // Disconnecting Google Calendar (clearing in-memory token)
     clearAccessToken();
     setEvents([]);
     setError(null);
@@ -260,13 +299,59 @@ export function useGoogleCalendar({
     previousGoogleEventIdsRef.current = new Set();
   }, []);
 
-  const refreshEvents = useCallback(async () => {
-    if (!accessToken) {
-      console.warn('[useGoogleCalendar] No Google access token in session, cannot refresh');
-      return;
-    }
-    await fetchAndSetEvents();
+  const refreshEvents = useCallback(async (range?: { start: Date; end: Date }) => {
+    if (!accessToken) return;
+    if (range) visibleRangeRef.current = range;
+    await fetchAndSetEvents(visibleRangeRef.current ?? undefined);
   }, [accessToken, fetchAndSetEvents]);
+
+  const toggleCalendarSelection = useCallback((calendarId: string) => {
+    const prev = selectedCalendarIdsRef.current;
+    const next = prev.includes(calendarId)
+      ? prev.filter((id) => id !== calendarId)
+      : [...prev, calendarId];
+    // Update the ref synchronously so fetchAndSetEvents reads the latest
+    // selection without waiting for the useEffect mirror to fire.
+    selectedCalendarIdsRef.current = next;
+    setSelectedCalendarIds(next);
+    try { localStorage.setItem('tempo-selected-calendars', JSON.stringify(next)); } catch { /* ignore */ }
+    // Reset the deletion-detection baseline so deselecting a calendar
+    // doesn't incorrectly report the removed events as deleted.
+    previousGoogleEventIdsRef.current = new Set();
+    // Immediately refetch events so the UI reflects the new selection
+    // without waiting for the next poll interval. Use the stored visible
+    // range so the fetch aligns with what the user is currently looking at.
+    void fetchAndSetEvents(visibleRangeRef.current ?? undefined);
+  }, [fetchAndSetEvents]);
+
+  // Fetch calendar list when authenticated
+  const fetchAndSetCalendars = useCallback(async () => {
+    if (disconnectedRef.current) return;
+    try {
+      const list = await fetchCalendarList();
+      setCalendars(list);
+      // Only auto-add primary on the very first load (when the stored
+      // selection is the default ['primary']). Once the user has explicitly
+      // toggled calendars, do NOT force primary back into the selection.
+      const stored = localStorage.getItem('tempo-selected-calendars');
+      if (!stored) {
+        const hasPrimary = list.some((c) => c.primary);
+        if (hasPrimary) {
+          const next = ['primary'];
+          try { localStorage.setItem('tempo-selected-calendars', JSON.stringify(next)); } catch { /* ignore */ }
+          setSelectedCalendarIds(next);
+        }
+      }
+    } catch {
+      // Failed to fetch calendar list — error surfaced via state
+    }
+  }, []);
+
+  useEffect(() => {
+    if (accessToken && !disconnectedRef.current) {
+      void fetchAndSetCalendars();
+    }
+  }, [accessToken, fetchAndSetCalendars]);
 
   return {
     // `isLoaded` was originally "have we finished loading the GIS library
@@ -283,5 +368,8 @@ export function useGoogleCalendar({
     connect,
     disconnect,
     refreshEvents,
+    calendars,
+    selectedCalendarIds,
+    toggleCalendarSelection,
   };
 }

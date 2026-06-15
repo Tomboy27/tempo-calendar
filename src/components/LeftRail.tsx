@@ -1,4 +1,5 @@
 import { Calendar, ListTodo, BarChart3, Settings as SettingsIcon, LogOut, User, Unlink, Sun, Moon, Sparkles, RefreshCw, Link2, AlertCircle, ArrowLeft } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 import { useState } from 'react';
 import { cn } from '../lib/utils';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -12,6 +13,8 @@ interface LeftRailProps {
   isLoaded: boolean;
   isLoading: boolean;
   error: string | null;
+  /** Timestamp of the most recent successful sync. */
+  lastSyncAt: Date | null;
   onConnect: () => void;
   onDisconnect: () => void;
   onRefresh: () => void;
@@ -54,6 +57,7 @@ export function LeftRail({
   onRefresh,
   onScheduleAll,
   unscheduledCount,
+  lastSyncAt,
   user,
   onSignIn,
   onSignOut,
@@ -124,6 +128,30 @@ export function LeftRail({
             onClick={onRefresh}
             disabled={isLoading}
           />
+          {/* Sync status indicator */}
+          <div
+            className={cn(
+              'w-full flex items-center justify-center py-1 text-[9px] font-medium transition-colors',
+              error ? 'text-destructive' : isLoading ? 'text-primary' : 'text-muted-foreground',
+            )}
+            title={error ? `Sync error: ${error}` : lastSyncAt ? `Last synced ${formatDistanceToNow(lastSyncAt)} ago` : 'Never synced'}
+          >
+            {error ? (
+              <span className="flex items-center gap-0.5">
+                <AlertCircle className="w-3 h-3" />
+                Error
+              </span>
+            ) : isLoading ? (
+              <span className="flex items-center gap-0.5">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                Syncing...
+              </span>
+            ) : lastSyncAt ? (
+              <span>{formatDistanceToNow(lastSyncAt)} ago</span>
+            ) : (
+              <span>Never synced</span>
+            )}
+          </div>
         </div>
       )}
 

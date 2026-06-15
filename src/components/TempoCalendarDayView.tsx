@@ -6,8 +6,11 @@ import {
   setMinutes,
   setSeconds,
   setMilliseconds,
+  differenceInMinutes,
 } from 'date-fns';
 import { DraggableEvent } from './CalendarEvent';
+import { cn } from '../lib/utils';
+import { CalendarDays } from 'lucide-react';
 import {
   HOUR_HEIGHT,
   getEventsForDay,
@@ -23,6 +26,10 @@ interface DayViewProps {
   endHour: number;
   onSelectEvent?: (event: CalendarEventType) => void;
   onSelectSlot?: (slot: { start: Date; end: Date }) => void;
+  /** Resize ghost — translucent preview of the new size during resize. */
+  resizeGhost?: import('./TempoCalendarHelpers').DragGhostTarget | null;
+  /** Start a resize operation on a task event. */
+  onResizeStart?: (eventId: string, direction: 'top' | 'bottom', clientY: number) => void;
 }
 
 /**
@@ -39,6 +46,8 @@ export function TempoCalendarDayView({
   endHour,
   onSelectEvent,
   onSelectSlot,
+  resizeGhost,
+  onResizeStart,
 }: DayViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [, setTick] = useState(0);
@@ -113,8 +122,20 @@ export function TempoCalendarDayView({
         </div>
       )}
 
-      {/* Scrollable time grid */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto tempo-scrollbar">
+      {/* Scrollable time grid — always visible so users can click slots */}
+      <div ref={containerRef} className="flex-1 overflow-y-auto tempo-scrollbar relative">
+        {/* Subtle empty-state overlay when no events */}
+        {events.length === 0 && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6 bg-card/60 backdrop-blur-[1px] pointer-events-none" role="status">
+            <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
+              <CalendarDays className="w-5 h-5 text-muted-foreground/60" />
+            </div>
+            <p className="text-sm font-medium text-foreground mb-1">Nothing scheduled today</p>
+            <p className="text-xs text-muted-foreground max-w-[220px] leading-relaxed">
+              Click any time slot to add a task.
+            </p>
+          </div>
+        )}
         <div
           className="relative grid grid-cols-[64px_1fr]"
           style={{ height: (endHour - startHour) * HOUR_HEIGHT }}
@@ -122,7 +143,7 @@ export function TempoCalendarDayView({
           {/* Hour gutter */}
           <div className="border-r border-border bg-card">
             {hours.map((h) => (
-              <div key={h} className="relative h-14 border-b border-border/40">
+              <div key={h} data-hour={h} className="relative h-14 border-b border-border/40">
                 <span className="absolute top-0 right-3 -translate-y-1/2 text-[10px] font-medium text-muted-foreground bg-card px-1 tabular-nums">
                   {format(setHours(date, h), 'h a')}
                 </span>
@@ -134,7 +155,7 @@ export function TempoCalendarDayView({
           <div className="relative" onClick={handleGridClick}>
             {/* Hour lines */}
             {hours.map((h) => (
-              <div key={h} className="h-14 border-b border-border/40" />
+              <div key={h} data-hour={h} className="h-14 border-b border-border/40" />
             ))}
 
             {/* Half-hour lines (subtle) */}
@@ -148,10 +169,10 @@ export function TempoCalendarDayView({
 
             {/* Now line */}
             {nowOffset !== null && (
-              <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: nowOffset }}>
+              <div className="absolute left-0 right-0 z-[5] pointer-events-none" style={{ top: nowOffset }}>
                 <div className="flex items-center">
-                  <div className="w-2 h-2 rounded-full bg-primary -ml-1 shadow-[0_0_0_4px_oklch(1_0_0)]" />
-                  <div className="flex-1 h-px bg-primary/60" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary -ml-0.5" />
+                  <div className="flex-1 h-[0.5px] bg-primary/40" />
                 </div>
               </div>
             )}
@@ -173,6 +194,7 @@ export function TempoCalendarDayView({
                   onClick={(e) => onSelectEvent?.(e)}
                   draggable={ev.data?.source === 'task' && !ev.data?.is_locked}
                   isLocked={ev.data?.is_locked}
+                  onResizeStart={ev.data?.source === 'task' && !ev.data?.is_locked ? (dir, y) => onResizeStart?.(ev.id, dir, y) : undefined}
                   positionStyle={{
                     top: ev.top,
                     height: Math.max(24, ev.height - 2),
@@ -182,10 +204,55 @@ export function TempoCalendarDayView({
                 />
               );
             })}
+
+            {/* Resize ghost — translucent preview of new size */}
+            {resizeGhost &&
+              (() => {
+                const visibleStart = setMilliseconds(
+                  setSeconds(setMinutes(setHours(date, startHour), 0), 0),
+                  0,
+                );
+                const minutesFromTop = differenceInMinutes(resizeGhost.newStart, visibleStart);
+                const durationMin = differenceInMinutes(resizeGhost.newEnd, resizeGhost.newStart);
+                const top = Math.max(0, (minutesFromTop / 60) * HOUR_HEIGHT);
+                const visibleMaxTop = (endHour - startHour) * HOUR_HEIGHT;
+                const height = Math.max(24, Math.min(visibleMaxTop - top, (durationMin / 60) * HOUR_HEIGHT));
+                const left = '4px';
+                const width = 'calc(100% - 8px)';
+                const variantClass =
+                  resizeGhost.variant === 'warning'
+                    ? 'bg-warning/20 border-warning text-foreground'
+                    : resizeGhost.variant === 'destructive'
+                    ? 'bg-destructive/20 border-destructive text-foreground'
+                    : resizeGhost.variant === 'success'
+                    ? 'bg-success/20 border-success text-foreground'
+                    : resizeGhost.variant === 'secondary'
+                    ? 'bg-event-task/30 border-event-task-border text-foreground'
+                    : resizeGhost.variant === 'muted'
+                    ? 'bg-muted border-muted-foreground/30 text-foreground'
+                    : 'bg-primary/20 border-primary text-foreground';
+                return (
+                  <div
+                    className={cn(
+                      'absolute z-30 rounded-md border-2 border-dashed pointer-events-none flex flex-col px-1.5 py-1 overflow-hidden',
+                      variantClass,
+                      'backdrop-blur-[1px] shadow-lg',
+                    )}
+                    style={{ top, height, left, width }}
+                    aria-hidden
+                  >
+                    <div className="flex items-center gap-1">
+                      <span className="font-semibold truncate text-[10px]">{resizeGhost.title}</span>
+                    </div>
+                    <div className="text-[9px] opacity-75 num">
+                      {format(resizeGhost.newStart, 'h:mma')} - {format(resizeGhost.newEnd, 'h:mma')}
+                    </div>
+                  </div>
+                );
+              })()}
           </div>
         </div>
       </div>
     </div>
   );
 }
-

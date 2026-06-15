@@ -24,16 +24,17 @@ import { Toaster, toast } from 'sonner';
 import { format } from 'date-fns';
 import { detectConflicts } from './lib/rescheduler';
 import { isSupabaseReady } from './lib/supabase';
-import { } from './lib/version';
+import { generateRecurringOccurrences } from './lib/recurring';
 import type { Task } from './lib/types';
 import type { TaskInput } from './lib/tasks';
+import { OccurrenceEditDialog, type OccurrenceEditScope } from './components/OccurrenceEditDialog';
 
 function useTheme() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') return 'light';
     const stored = localStorage.getItem('tempo-theme');
     if (stored === 'dark' || stored === 'light') return stored;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return 'light'; // Default to light; user can explicitly choose dark
   });
 
   useEffect(() => {
@@ -109,8 +110,8 @@ function App() {
           { description: `Deleted in Google: ${description}` }
         );
       }
-    } catch (err) {
-      console.error('[App] Failed to unlink deleted Google events:', err);
+    } catch {
+      // Failed to unlink deleted Google events — error surfaced via state
     }
   }, [tasksHook]);
 
@@ -130,10 +131,23 @@ function App() {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [occurrenceEdit, setOccurrenceEdit] = useState<{
+    open: boolean;
+    taskId: string;
+    occurrenceDate: Date;
+    changeType: 'move' | 'resize' | 'complete' | 'skip' | 'edit';
+    pendingUpdate: { scheduled_start?: string; scheduled_end?: string; duration_minutes?: number } | null;
+  }>({ open: false, taskId: '', occurrenceDate: new Date(), changeType: 'move', pendingUpdate: null });
   const [activeView, setActiveView] = useState<'calendar' | 'tasks' | 'insights'>('calendar');
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [tempoView, setTempoView] = useState<'day' | 'week' | 'month'>('week');
+  const [visibleRange, setVisibleRange] = useState<{ start: Date; end: Date }>(() => {
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const threeMonthsAhead = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    return { start: oneWeekAgo, end: threeMonthsAhead };
+  });
   const [focusMode, setFocusMode] = useState<{ open: boolean; taskId: string | null }>({ open: false, taskId: null });
   // Keep the ref in sync so the deletion handler can read it without
   // being rebuilt on every focus-mode open/close.
@@ -173,8 +187,11 @@ function App() {
 
   const allEvents = useMemo(() => {
     const googleEvents = calendar.events || [];
+    // Only include non-repeating tasks here; repeating tasks generate
+    // their own occurrences via generateRecurringOccurrences so the base
+    // event is not duplicated.
     const taskEvents = allTasks
-      .filter((t) => t.is_scheduled && t.scheduled_start && t.scheduled_end)
+      .filter((t) => t.is_scheduled && t.scheduled_start && t.scheduled_end && t.frequency === 'once')
       .map((t) => ({
         id: `task-${t.id}`,
         title: t.title,
@@ -190,7 +207,15 @@ function App() {
 
   const tempoEvents = useMemo<CalendarEventType[]>(() => {
     const now = new Date();
-    return allEvents.map((ev) => {
+    // Use the visible calendar range from TempoCalendar so recurring
+    // occurrences are generated for the exact window the user is looking at.
+    // Add a small buffer (1 week back, 1 week ahead) so drag-ghosts and
+    // edge navigation still have data available.
+    const from = new Date(visibleRange.start.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const horizon = new Date(visibleRange.end.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    // Base events from allEvents
+    const baseEvents = allEvents.map((ev) => {
       const originalTask = ev.source === 'task'
         ? allTasks.find((t) => `task-${t.id}` === ev.id)
         : null;
@@ -201,15 +226,24 @@ function App() {
           new Date(originalTask.scheduled_end) < now)
       );
       const isCompleted = originalTask?.status === 'completed';
+      const isSkipped = originalTask?.status === 'skipped';
       const isLocked = originalTask?.is_locked === true;
-
-      const variant: CalendarEventType['variant'] = isMissed
-        ? 'destructive'
-        : isLocked
-          ? 'success'
-          : ev.source === 'google'
-            ? 'muted'
-            : 'secondary';
+      const isBusyBlock = originalTask?.is_busy_block === true;
+      const isRecurring = originalTask?.frequency !== 'once';        const variant: CalendarEventType['variant'] = isSkipped
+        ? 'muted'
+        : isCompleted
+          ? 'muted'
+          : isMissed
+            ? 'destructive'
+            : isLocked
+              ? 'success'
+              : isBusyBlock
+                ? 'primary'
+                : isRecurring
+                  ? 'warning'
+                  : ev.source === 'google'
+                    ? 'muted'
+                    : 'secondary';
 
       return {
         id: ev.id,
@@ -222,12 +256,24 @@ function App() {
           source: ev.source,
           color: ev.color,
           is_locked: isLocked,
-          is_missed: isMissed,
-          is_completed: isCompleted,
-        },
-      };
-    });
-  }, [allEvents, allTasks]);
+          is_missed: isMissed,            is_completed: isCompleted,
+            is_skipped: isSkipped,
+            is_busy_block: isBusyBlock,
+            is_recurring: isRecurring,
+          },
+        };
+      });
+
+    // Generate recurring occurrences for repeating tasks
+    const recurringEvents: CalendarEventType[] = [];
+    for (const task of allTasks) {
+      if (task.frequency !== 'once' && task.is_scheduled && task.scheduled_start && task.scheduled_end) {
+        recurringEvents.push(...generateRecurringOccurrences(task, from, horizon));
+      }
+    }
+
+    return [...baseEvents, ...recurringEvents];
+  }, [allEvents, allTasks, visibleRange]);
 
   const handleSaveTask = async (input: TaskInput) => {
     if (editingTask) {
@@ -294,44 +340,51 @@ function App() {
 
   // Auto-complete the parent task when all its subtasks are done.
   // Triggers only when the batch's subtask map or the editing task id
-  // changes. Reads the current task from `tasksHook.tasks` rather than
-  // the stale `editingTask` ref so the toast doesn't re-fire if the
-  // user toggles another subtask after auto-completion.
+  // changes. Reads the current task from `tasksHook.tasks` via a ref so
+  // the toast doesn't re-fire if the user toggles another subtask after
+  // auto-completion.
   //
   // Debounced by 400ms: if a user is rapidly toggling the last remaining
   // subtask on/off, we wait for a stable "all done" state before firing
   // the auto-complete. This avoids two concurrent requests racing to
-  // flip the parent's status, and avoids the toast firing for a state
-  // the user immediately reverted.
+  // flip the parent's status.
+  const tasksHookRef = useRef(tasksHook);
+  useEffect(() => { tasksHookRef.current = tasksHook; }, [tasksHook]);
+
   useEffect(() => {
     if (!editingTask) return;
     const subs = subtasksBatch.byTaskId.get(editingTask.id) || [];
     if (subs.length === 0) return;
     if (!subs.every((s) => s.completed)) return;
     const timer = setTimeout(() => {
-      // Re-read the latest state — the user may have toggled a subtask
-      // back to incomplete during the debounce window, or the parent
-      // may have been completed by another code path.
-      const current = tasksHook.tasks.find((t) => t.id === editingTask.id);
+      // Re-read the latest state via the ref so the timer closure always
+      // sees the current tasks array without adding it to the deps.
+      const current = tasksHookRef.current.tasks.find((t) => t.id === editingTask.id);
       if (current && current.status === 'active') {
-        tasksHook.complete(editingTask.id);
+        tasksHookRef.current.complete(editingTask.id);
         toast.success('All subtasks done — task auto-completed!');
       }
     }, 400);
     return () => clearTimeout(timer);
-    // Narrow deps on purpose: the effect should re-fire only when the
-    // subtask state for the editing task changes. Listing `tasksHook.tasks`
-    // here would reset the debounce timer on every unrelated task
-    // mutation (e.g., a sync update from another tab), making the
-    // auto-complete feel laggy. The latest `tasks` is read inside the
-    // timer closure via the stable `tasksHook` reference.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subtasksBatch.byTaskId, editingTask?.id, tasksHook]);
+  }, [subtasksBatch.byTaskId, editingTask?.id]);
 
   useEffect(() => {
     if (auth.isAuthenticated && !didAuthTransitionRef.current) refresh();
     didAuthTransitionRef.current = auth.isAuthenticated;
   }, [auth.isAuthenticated, refresh]);
+
+  // Re-fetch Google events when the visible calendar range changes so
+  // the user always sees imported events for the window they are looking at.
+  // Mirror `calendar` into a ref so the effect can call `refreshEvents`
+  // without listing the whole `calendar` object in its deps.
+  const calendarRef = useRef(calendar);
+  useEffect(() => { calendarRef.current = calendar; }, [calendar]);
+
+  useEffect(() => {
+    if (calendarRef.current.isAuthenticated && visibleRange) {
+      void calendarRef.current.refreshEvents(visibleRange);
+    }
+  }, [visibleRange.start.toISOString(), visibleRange.end.toISOString()]);
 
   // Cmd/Ctrl+K opens command palette
   useEffect(() => {
@@ -376,8 +429,8 @@ function App() {
   const handleConnectCalendar = async () => {
     try {
       await auth.connectGoogleCalendar();
-    } catch (err) {
-      console.error('[App] Failed to start Google Calendar OAuth:', err);
+    } catch {
+      // Failed to start Google Calendar OAuth — error surfaced via toast
     }
   };
 
@@ -391,7 +444,28 @@ function App() {
       toast.error('Google events are read-only here');
       return;
     }
-    const taskId = eventId.replace('task-', '');
+    const m = eventId.match(/^task-(.+?)(?:-occ-.+)?$/);
+    const taskId = m?.[1] ?? '';
+    if (!taskId) return;
+    const task = allTasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    // Recurring occurrences: show scope dialog
+    if (eventId.includes('-occ-')) {
+      const occDate = newStart;
+      setOccurrenceEdit({
+        open: true,
+        taskId,
+        occurrenceDate: occDate,
+        changeType: 'move',
+        pendingUpdate: {
+          scheduled_start: newStart.toISOString(),
+          scheduled_end: newEnd.toISOString(),
+        },
+      });
+      return;
+    }
+
     try {
       await tasksHook.update(taskId, {
         is_scheduled: true,
@@ -404,11 +478,74 @@ function App() {
     }
   };
 
+  const handleEventResize = async (eventId: string, newStart: Date, newEnd: Date) => {
+    if (!eventId.startsWith('task-')) {
+      toast.error('Google events are read-only here');
+      return;
+    }
+    const m = eventId.match(/^task-(.+?)(?:-occ-.+)?$/);
+    const taskId = m?.[1] ?? '';
+    if (!taskId) return;
+    const task = allTasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    // Recurring occurrences: show scope dialog
+    if (eventId.includes('-occ-')) {
+      const occDate = newStart;
+      const durationMin = Math.round((newEnd.getTime() - newStart.getTime()) / (60 * 1000));
+      setOccurrenceEdit({
+        open: true,
+        taskId,
+        occurrenceDate: occDate,
+        changeType: 'resize',
+        pendingUpdate: {
+          scheduled_start: newStart.toISOString(),
+          scheduled_end: newEnd.toISOString(),
+          duration_minutes: durationMin,
+        },
+      });
+      return;
+    }
+
+    const durationMin = Math.round((newEnd.getTime() - newStart.getTime()) / (60 * 1000));
+    if (durationMin < 5) {
+      toast.error('Too short', { description: 'Events must be at least 5 minutes long' });
+      return;
+    }
+    try {
+      await tasksHook.update(taskId, {
+        is_scheduled: true,
+        scheduled_start: newStart.toISOString(),
+        scheduled_end: newEnd.toISOString(),
+        duration_minutes: durationMin,
+      });
+      toast.success('Resized', { description: `${format(newStart, 'h:mma')} – ${format(newEnd, 'h:mma')}` });
+    } catch (err) {
+      toast.error('Could not resize', { description: err instanceof Error ? err.message : 'Unknown error' });
+    }
+  };
+
   const handleSelectEvent = (event: CalendarEventType) => {
     if (!event.id.startsWith('task-')) return;
-    const taskId = event.id.replace('task-', '');
+    const m = event.id.match(/^task-(.+?)(?:-occ-.+)?$/);
+    const taskId = m?.[1] ?? '';
     const task = allTasks.find((t) => t.id === taskId);
-    if (task) handleEditTask(task);
+    if (!task) return;
+
+    // Recurring occurrences: show scope dialog instead of jumping straight to the base task
+    if (event.id.includes('-occ-')) {
+      const occDate = event.start;
+      setOccurrenceEdit({
+        open: true,
+        taskId,
+        occurrenceDate: occDate,
+        changeType: 'edit',
+        pendingUpdate: null,
+      });
+      return;
+    }
+
+    handleEditTask(task);
   };
 
   // Supabase not configured: configuration error screen
@@ -477,7 +614,7 @@ function App() {
               <Sparkles className="w-3 h-3" />
               Calendar + tasks, finally
             </div>
-            <h1 className="mt-5 text-4xl lg:text-5xl font-semibold text-foreground tracking-tight leading-[1.05]">
+            <h1 className="mt-5 text-4xl lg:text-5xl display-1 text-foreground leading-[1.05]">
               Tasks find their own time.
             </h1>
             <p className="mt-5 text-base lg:text-lg text-muted-foreground leading-relaxed">
@@ -525,19 +662,26 @@ function App() {
           </div>
           </main>
         <AuthDialog open={showAuthDialog} onClose={() => setShowAuthDialog(false)} />
-        <SettingsPanel
-          open={showSettings}
-          onClose={() => setShowSettings(false)}
-          theme={theme}
-          onSetTheme={setTheme}
-          onUseSystemTheme={useSystemTheme}
-          user={auth.user}
-          isGoogleConnected={calendar.isAuthenticated}
-          onDisconnectGoogle={calendar.disconnect}
-          onSignOut={auth.signOut}
-          workingHours={workingHours}
-          onWorkingHoursChange={setWorkingHours}
-        />
+      <SettingsPanel
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        theme={theme}
+        onSetTheme={setTheme}
+        onUseSystemTheme={useSystemTheme}
+        user={auth.user}
+        isGoogleConnected={calendar.isAuthenticated}
+        onDisconnectGoogle={calendar.disconnect}
+        onSignOut={auth.signOut}
+        workingHours={workingHours}
+        onWorkingHoursChange={setWorkingHours}
+        lastSyncAt={calendar.lastSyncAt}
+        syncedEventCount={calendar.events.length}
+        syncError={calendar.error?.message ?? null}
+        isSyncing={calendar.isLoading}
+        calendars={calendar.calendars}
+        selectedCalendarIds={calendar.selectedCalendarIds}
+        onToggleCalendar={calendar.toggleCalendarSelection}
+      />
       </div>
     );
   }
@@ -576,9 +720,9 @@ function App() {
                 <Sparkles className="w-3 h-3" />
                 One last step
               </div>
-              <h1 className="mt-5 text-4xl lg:text-5xl font-semibold text-foreground tracking-tight leading-[1.05]">
-                Connect your calendar.
-              </h1>
+            <h1 className="mt-5 text-4xl lg:text-5xl display-1 text-foreground leading-[1.05]">
+              Connect your calendar.
+            </h1>
               <p className="mt-5 text-base lg:text-lg text-muted-foreground leading-relaxed">
                 Tempo reads your Google Calendar to find open time. We&rsquo;ll place your tasks where they actually fit.
               </p>
@@ -633,45 +777,52 @@ function App() {
               <ProductPreviewMock />
             </div>
           </main>
-        <SettingsPanel
-          open={showSettings}
-          onClose={() => setShowSettings(false)}
-          theme={theme}
-          onSetTheme={setTheme}
-          onUseSystemTheme={useSystemTheme}
-          user={auth.user}
-          isGoogleConnected={false}
-          onDisconnectGoogle={() => {}}
-          onSignOut={auth.signOut}
-          workingHours={workingHours}
-          onWorkingHoursChange={setWorkingHours}
-        />
+      <SettingsPanel
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        theme={theme}
+        onSetTheme={setTheme}
+        onUseSystemTheme={useSystemTheme}
+        user={auth.user}
+        isGoogleConnected={false}
+        onDisconnectGoogle={() => {}}
+        onSignOut={auth.signOut}
+        workingHours={workingHours}
+        onWorkingHoursChange={setWorkingHours}
+        lastSyncAt={calendar.lastSyncAt}
+        syncedEventCount={0}
+        syncError={calendar.error?.message ?? null}
+        isSyncing={calendar.isLoading}
+        calendars={[]}
+        selectedCalendarIds={[]}
+        onToggleCalendar={() => {}}
+      />
       </div>
     );
   }
 
   // Authenticated: full workspace
   return (
-    <div className="h-[100dvh] flex app-gradient">
-      <LeftRail
-        activeView={activeView}
-        onViewChange={setActiveView}
-        isAuthenticated={calendar.isAuthenticated}
-        isLoaded={calendar.isLoaded}
-        isLoading={calendar.isLoading}
-        error={calendar.error?.message ?? null}
-        onConnect={handleConnectCalendar}
-        onDisconnect={calendar.disconnect}
-        onRefresh={calendar.refreshEvents}
-        onScheduleAll={handleScheduleAll}
-        unscheduledCount={unscheduledCount}
-        user={auth.user}
-        onSignIn={() => setShowAuthDialog(true)}
-        onSignOut={auth.signOut}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        onOpenSettings={() => setShowSettings(true)}
-      />
+    <div className="h-[100dvh] flex app-gradient">        <LeftRail
+          activeView={activeView}
+          onViewChange={setActiveView}
+          isAuthenticated={calendar.isAuthenticated}
+          isLoaded={calendar.isLoaded}
+          isLoading={calendar.isLoading}
+          error={calendar.error?.message ?? null}
+          lastSyncAt={calendar.lastSyncAt}
+          onConnect={handleConnectCalendar}
+          onDisconnect={calendar.disconnect}
+          onRefresh={calendar.refreshEvents}
+          onScheduleAll={handleScheduleAll}
+          unscheduledCount={unscheduledCount}
+          user={auth.user}
+          onSignIn={() => setShowAuthDialog(true)}
+          onSignOut={auth.signOut}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onOpenSettings={() => setShowSettings(true)}
+        />
       <div
         className="flex-1 flex flex-col min-w-0"
         inert={focusMode.open && calendar.isAuthenticated ? true : undefined}
@@ -692,22 +843,40 @@ function App() {
 
       {/* Error banners */}
       {calendar.error && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-destructive/5 border-b border-destructive/20 text-sm text-destructive">
+        <div role="alert" className="flex items-center gap-2 px-4 py-2 bg-destructive/5 border-b border-destructive/20 text-sm text-destructive">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           {calendar.error.message}
         </div>
       )}
 
       {tasksHook.error && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-destructive/5 border-b border-destructive/20 text-sm text-destructive">
+        <div role="alert" className="flex items-center gap-2 px-4 py-2 bg-destructive/5 border-b border-destructive/20 text-sm text-destructive">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           {tasksHook.error}
+        </div>
+      )}
+
+      {tasksHook.syncErrors.length > 0 && (
+        <div
+          role="alert"
+          className="flex items-center gap-3 px-4 py-2.5 bg-destructive/5 border-b border-destructive/20 text-sm text-destructive cursor-pointer"
+          onClick={tasksHook.clearSyncErrors}
+        >
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span className="flex-1 min-w-0">
+            {tasksHook.syncErrors.length === 1
+              ? tasksHook.syncErrors[0]
+              : `${tasksHook.syncErrors.length} sync errors`}
+          </span>
+          <span className="text-[10px] font-medium opacity-70">Click to dismiss</span>
         </div>
       )}
 
       {/* Smart recalc banner */}
       {conflictCount > 0 && (
         <div
+          role="status"
+          aria-live="polite"
           data-onboarding="conflict-banner"
           className="flex items-center gap-3 px-4 py-2.5 bg-warning/5 border-b border-warning/20 animate-slide-down"
         >
@@ -746,6 +915,8 @@ function App() {
             onSelectEvent={handleSelectEvent}
             onSelectSlot={handleSelectSlot}
             onEventDrop={handleEventDrop}
+            onEventResize={handleEventResize}
+            onViewRangeChange={setVisibleRange}
             startHour={parseInt(workingHours.start.split(':')[0], 10)}
             endHour={parseInt(workingHours.end.split(':')[0], 10) + 2}
             className="min-h-0"
@@ -804,16 +975,211 @@ function App() {
         onClose={() => setShowSettings(false)}
         theme={theme}
         onSetTheme={setTheme}
-          onUseSystemTheme={useSystemTheme}
+        onUseSystemTheme={useSystemTheme}
         user={auth.user}
         isGoogleConnected={calendar.isAuthenticated}
         onDisconnectGoogle={calendar.disconnect}
         onSignOut={auth.signOut}
         workingHours={workingHours}
         onWorkingHoursChange={setWorkingHours}
+        lastSyncAt={calendar.lastSyncAt}
+        syncedEventCount={calendar.events.length}
+        syncError={calendar.error?.message ?? null}
+        isSyncing={calendar.isLoading}
+        calendars={calendar.calendars}
+        selectedCalendarIds={calendar.selectedCalendarIds}
+        onToggleCalendar={calendar.toggleCalendarSelection}
       />
 
       <OnboardingTour onComplete={() => { /* persisted in localStorage */ }} />
+
+      {occurrenceEdit.open && (
+        <OccurrenceEditDialog
+          key={`${occurrenceEdit.taskId}-${occurrenceEdit.changeType}-${occurrenceEdit.occurrenceDate.toISOString()}`}
+          open={occurrenceEdit.open}
+          onClose={() => setOccurrenceEdit((p) => ({ ...p, open: false }))}
+          onConfirm={async (scope: OccurrenceEditScope) => {
+            const { taskId, occurrenceDate, changeType, pendingUpdate } = occurrenceEdit;
+            const task = allTasks.find((t) => t.id === taskId);
+            if (!task) return;
+            const dateKey = format(occurrenceDate, 'yyyy-MM-dd');
+
+            try {
+              if (scope === 'this') {
+                // Create an occurrence override for this specific date
+                const overrides = task.occurrence_overrides || {};
+                if (changeType === 'skip' || changeType === 'complete') {
+                  await tasksHook.update(taskId, {
+                    occurrence_overrides: {
+                      ...overrides,
+                      [dateKey]: {
+                        status: changeType === 'skip' ? 'skipped' : 'completed',
+                        scheduled_start: task.scheduled_start ?? undefined,
+                        scheduled_end: task.scheduled_end ?? undefined,
+                      },
+                    },
+                  });
+                  toast.success(changeType === 'skip' ? 'Skipped' : 'Completed', {
+                    description: `${format(occurrenceDate, 'MMM d')}`,
+                  });
+                } else if (changeType === 'edit') {
+                  // For "edit this", open the base task dialog
+                  setOccurrenceEdit((p) => ({ ...p, open: false }));
+                  handleEditTask(task);
+                  return;
+                } else if (pendingUpdate) {
+                  await tasksHook.update(taskId, {
+                    occurrence_overrides: {
+                      ...overrides,
+                      [dateKey]: {
+                        scheduled_start: pendingUpdate.scheduled_start,
+                        scheduled_end: pendingUpdate.scheduled_end,
+                      },
+                    },
+                  });
+                  toast.success('Updated', { description: `${format(occurrenceDate, 'MMM d')}` });
+                }
+              } else if (scope === 'all') {
+                // Update the base task
+                if (changeType === 'skip' || changeType === 'complete') {
+                  await tasksHook.update(taskId, {
+                    status: changeType === 'skip' ? 'skipped' : 'completed',
+                  });
+                } else if (changeType === 'edit') {
+                  // For "edit all", just open the base task dialog
+                  setOccurrenceEdit((p) => ({ ...p, open: false }));
+                  handleEditTask(task);
+                  return;
+                } else if (pendingUpdate) {
+                  await tasksHook.update(taskId, {
+                    scheduled_start: pendingUpdate.scheduled_start,
+                    scheduled_end: pendingUpdate.scheduled_end,
+                    ...(pendingUpdate.duration_minutes ? { duration_minutes: pendingUpdate.duration_minutes } : {}),
+                  });
+                }
+                toast.success('All occurrences updated');
+              } else if (scope === 'future') {
+                // Change recurrence_end to stop at the occurrence date, then create a new task
+                if (changeType === 'skip') {
+                  // End the series before this occurrence: all future occurrences are skipped
+                  const prevDate = new Date(occurrenceDate.getTime() - 24 * 60 * 60 * 1000);
+                  const newRecurrenceEnd = format(prevDate, 'yyyy-MM-dd');
+                  await tasksHook.update(taskId, {
+                    recurrence_end: newRecurrenceEnd,
+                  });
+                  toast.success('Series ended', { description: `From ${format(occurrenceDate, 'MMM d')} onwards` });
+                } else if (changeType === 'complete') {
+                  // Split the series: end old task, create new completed task from this occurrence
+                  const prevDate = new Date(occurrenceDate.getTime() - 24 * 60 * 60 * 1000);
+                  const newRecurrenceEnd = format(prevDate, 'yyyy-MM-dd');
+                  await tasksHook.update(taskId, {
+                    recurrence_end: newRecurrenceEnd,
+                  });
+                  const baseStart = new Date(task.scheduled_start!);
+                  const baseEnd = new Date(task.scheduled_end!);
+                  const durationMs = baseEnd.getTime() - baseStart.getTime();
+                  // Ensure the new task's preferred_days includes the occurrence day so the
+                  // first generated occurrence falls on the exact occurrence date.
+                  // Only do this for weekly tasks; daily tasks should keep all days.
+                  const isoDay = occurrenceDate.getDay() === 0 ? 7 : occurrenceDate.getDay();
+                  const preferredDays = new Set(task.preferred_days ?? []);
+                  if (task.frequency === 'weekly') {
+                    preferredDays.add(isoDay);
+                  }
+                  // For open-ended completed series, cap the new task at the occurrence date
+                  // so it doesn't generate muted occurrences forever.
+                  const newRecurrenceEndCap = task.recurrence_end || format(occurrenceDate, 'yyyy-MM-dd');
+                  await tasksHook.create({
+                    title: task.title,
+                    description: task.description || undefined,
+                    duration_minutes: task.duration_minutes,
+                    priority: task.priority,
+                    frequency: task.frequency,
+                    due_date: task.due_date || undefined,
+                    color: task.color,
+                    tags: task.tags || undefined,
+                    preferred_days: task.frequency === 'daily'
+                      ? task.preferred_days || undefined
+                      : Array.from(preferredDays),
+                    is_habit: task.is_habit,
+                    can_split: task.can_split,
+                    is_busy_block: task.is_busy_block,
+                    ignore_if_cannot_schedule: task.ignore_if_cannot_schedule,
+                    can_balance_across_days: task.can_balance_across_days,
+                    buffer_before_minutes: task.buffer_before_minutes || undefined,
+                    buffer_after_minutes: task.buffer_after_minutes || undefined,
+                    notes: task.notes || undefined,
+                    is_locked: task.is_locked,
+                    auto_schedule: task.auto_schedule,
+                    scheduling_cutoff_weeks: task.scheduling_cutoff_weeks,
+                    preferred_time_windows: task.preferred_time_windows || undefined,
+                    list_id: task.list_id || undefined,
+                    scheduling_profile_id: task.scheduling_profile_id || undefined,
+                    is_recurring: true,
+                    recurrence_end: newRecurrenceEndCap,
+                    scheduled_start: occurrenceDate.toISOString(),
+                    scheduled_end: new Date(occurrenceDate.getTime() + durationMs).toISOString(),
+                    is_scheduled: true,
+                    status: 'completed',
+                  });
+                  toast.success('Series completed', { description: `From ${format(occurrenceDate, 'MMM d')} onwards` });
+                } else if (changeType === 'edit') {
+                  // For "edit future", open the base task dialog (user can adjust recurrence_end)
+                  setOccurrenceEdit((p) => ({ ...p, open: false }));
+                  handleEditTask(task);
+                  return;
+                } else if (pendingUpdate) {
+                  // Split the series: set recurrence_end to the day before this occurrence
+                  const prevDate = new Date(occurrenceDate.getTime() - 24 * 60 * 60 * 1000);
+                  const newRecurrenceEnd = format(prevDate, 'yyyy-MM-dd');
+                  await tasksHook.update(taskId, {
+                    recurrence_end: newRecurrenceEnd,
+                  });
+                  // Create a new task with the updated schedule starting from this occurrence
+                  await tasksHook.create({
+                    title: task.title,
+                    description: task.description || undefined,
+                    duration_minutes: pendingUpdate.duration_minutes || task.duration_minutes,
+                    priority: task.priority,
+                    frequency: task.frequency,
+                    due_date: task.due_date || undefined,
+                    color: task.color,
+                    tags: task.tags || undefined,
+                    preferred_days: task.preferred_days || undefined,
+                    is_habit: task.is_habit,
+                    can_split: task.can_split,
+                    is_busy_block: task.is_busy_block,
+                    ignore_if_cannot_schedule: task.ignore_if_cannot_schedule,
+                    can_balance_across_days: task.can_balance_across_days,
+                    buffer_before_minutes: task.buffer_before_minutes || undefined,
+                    buffer_after_minutes: task.buffer_after_minutes || undefined,
+                    notes: task.notes || undefined,
+                    is_locked: task.is_locked,
+                    auto_schedule: task.auto_schedule,
+                    scheduling_cutoff_weeks: task.scheduling_cutoff_weeks,
+                    preferred_time_windows: task.preferred_time_windows || undefined,
+                    list_id: task.list_id || undefined,
+                    scheduling_profile_id: task.scheduling_profile_id || undefined,
+                    is_recurring: true,
+                    recurrence_end: task.recurrence_end || undefined,
+                    scheduled_start: pendingUpdate.scheduled_start,
+                    scheduled_end: pendingUpdate.scheduled_end,
+                    is_scheduled: true,
+                  });
+                  toast.success('Series split', { description: 'Future occurrences use the new schedule' });
+                }
+              }
+            } catch (err) {
+              toast.error('Could not update', { description: err instanceof Error ? err.message : 'Unknown error' });
+            } finally {
+              setOccurrenceEdit((p) => ({ ...p, open: false }));
+            }
+          }}
+          taskTitle={allTasks.find((t) => t.id === occurrenceEdit.taskId)?.title ?? ''}
+          occurrenceDate={occurrenceEdit.occurrenceDate}
+          changeType={occurrenceEdit.changeType}
+        />
+      )}
 
       {showTaskDialog && (
         <TaskDialog

@@ -1,10 +1,16 @@
 /**
  * Single source of truth for the app version and changelog.
+ * The version string is imported directly from package.json so there
+ * is exactly one place to bump it (package.json). The `v` prefix is
+ * added at runtime.
+ *
  * Imported by both App.tsx (for the displayed version) and
  * VersionBadge.tsx (for the popover and "new" indicator logic).
  */
 
-export const TEMPO_VERSION = 'v1.2.0';
+import pkg from '../../package.json';
+
+export const TEMPO_VERSION = 'v' + pkg.version;
 
 export interface ChangelogEntry {
   version: string;

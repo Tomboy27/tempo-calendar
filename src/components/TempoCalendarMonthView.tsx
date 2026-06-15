@@ -8,6 +8,7 @@ import {
   isToday,
 } from 'date-fns';
 import { cn } from '../lib/utils';
+import { CalendarDays } from 'lucide-react';
 import {
   getEventsForDay,
   type CalendarEventType,
@@ -72,8 +73,20 @@ export function TempoCalendarMonthView({
         ))}
       </div>
 
-      {/* Day grid */}
-      <div className="flex-1 grid grid-cols-7 grid-rows-6">
+      {/* Day grid — always visible so users can click days */}
+      <div className="flex-1 grid grid-cols-7 grid-rows-6 relative">
+        {/* Subtle empty-state overlay when no events */}
+        {events.length === 0 && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6 bg-card/60 backdrop-blur-[1px] pointer-events-none" role="status">
+            <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
+              <CalendarDays className="w-5 h-5 text-muted-foreground/60" />
+            </div>
+            <p className="text-sm font-medium text-foreground mb-1">Nothing scheduled this month</p>
+            <p className="text-xs text-muted-foreground max-w-[220px] leading-relaxed">
+              Click a day to add a task.
+            </p>
+          </div>
+        )}
         {days.map((d) => {
           const dayEvents = eventsByDay.get(d.toDateString()) || [];
           const inMonth = isSameMonth(d, date);

@@ -30,10 +30,19 @@ export function Header({
     <header className="sticky top-0 z-30 h-12 flex items-center gap-3 px-4 bg-card/95 backdrop-blur-sm border-b border-border">
       {/* Brand */}
       <div className="flex items-center gap-2.5 mr-2">
-        <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
-          <Calendar className="w-3.5 h-3.5 text-primary-foreground" />
+        <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shadow-sm">
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className="w-4 h-4 text-primary-foreground"
+            aria-hidden
+          >
+            <rect x="4" y="14" width="3" height="8" rx="0.6" />
+            <rect x="10.5" y="7" width="3" height="15" rx="0.6" />
+            <rect x="17" y="11" width="3" height="11" rx="0.6" />
+          </svg>
         </div>
-        <span className="text-sm font-semibold text-foreground tracking-tight hidden sm:inline">Tempo Calendar</span>
+        <span className="text-sm font-semibold text-foreground tracking-tight hidden sm:inline">Tempo</span>
       </div>
 
       {/* Spacer */}

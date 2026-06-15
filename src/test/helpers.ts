@@ -45,6 +45,7 @@ const TASK_DEFAULTS: Omit<Task, 'id' | 'created_at' | 'updated_at'> = {
   due_date: null,
   due_time: null,
   deadline: null,
+  recurrence_end: null,
   priority: 'NORMAL',
   frequency: 'once',
   preferred_days: null,
@@ -83,6 +84,7 @@ const TASK_DEFAULTS: Omit<Task, 'id' | 'created_at' | 'updated_at'> = {
   sync_to_calendar: true,
   last_scheduled_at: null,
   last_missed_at: null,
+  occurrence_overrides: null,
 };
 
 export function makeTask(opts: MakeTaskOptions = {}): Task {

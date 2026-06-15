@@ -38,6 +38,15 @@ export interface TaskFormState {
   preferred_time_end: string;
   list_id: string;
   scheduling_profile_id: string;
+  // Fixed-time fields — used only when creating a fixed-time block
+  start_time: string;
+  end_time: string;
+  // Task type drives progressive disclosure in the UI
+  task_type: 'flexible' | 'fixed' | 'repeating';
+  // Repeating-specific
+  repeat_until: string;
+  // Proper recurrence end date (separate from scheduling deadline)
+  recurrence_end: string;
 }
 
 /**

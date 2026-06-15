@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data, error: err }) => {
       if (!mountedRef.current) return;
       if (err) {
-        console.error('[Auth] getSession error:', err);
+        // getSession error — surfaced via auth state
       } else {
         setSession(data.session);
         setUser(data.session?.user ?? null);

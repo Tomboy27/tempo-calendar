@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import { X, Sun, Moon, Monitor, Bell, LogOut, Unlink, User, Calendar, Info, ExternalLink } from 'lucide-react';
+import { X, Sun, Moon, Monitor, Bell, LogOut, Unlink, User, Calendar, Info, ExternalLink, Check } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 import { Button } from './ui/button';
 import { cn } from '../lib/utils';
+import { TEMPO_VERSION } from '../lib/version';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import type { GoogleCalendar } from '../lib/google';
 
 interface SettingsPanelProps {
   open: boolean;
@@ -16,6 +19,20 @@ interface SettingsPanelProps {
   onSignOut: () => Promise<void>;
   workingHours: { start: string; end: string };
   onWorkingHoursChange: (hours: { start: string; end: string }) => void;
+  /** Timestamp of the most recent successful sync. */
+  lastSyncAt: Date | null;
+  /** Number of calendar events synced. */
+  syncedEventCount: number;
+  /** Current sync error message, if any. */
+  syncError: string | null;
+  /** True if a sync is in progress. */
+  isSyncing: boolean;
+  /** All available Google calendars. */
+  calendars: GoogleCalendar[];
+  /** Which calendars are selected for syncing. */
+  selectedCalendarIds: string[];
+  /** Toggle a calendar's selection. */
+  onToggleCalendar: (calendarId: string) => void;
 }
 
 type Section = 'appearance' | 'schedule' | 'account';
@@ -32,6 +49,13 @@ export function SettingsPanel({
   onSignOut,
   workingHours,
   onWorkingHoursChange,
+  lastSyncAt,
+  syncedEventCount,
+  syncError,
+  isSyncing,
+  calendars,
+  selectedCalendarIds,
+  onToggleCalendar,
 }: SettingsPanelProps) {
   const [section, setSection] = useState<Section>('appearance');
 
@@ -154,10 +178,10 @@ export function SettingsPanel({
                     </div>
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">Version</span>
-                      <span className="font-mono text-foreground">{import.meta.env.MODE === 'production' ? 'v1.0.0' : 'dev'}</span>
+                      <span className="font-mono text-foreground">{TEMPO_VERSION}</span>
                     </div>
                     <a
-                      href="https://github.com"
+                      href="https://github.com/tomer-s/flowsavvy-personal-scheduler"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-between text-xs hover:text-foreground transition-colors pt-1.5 border-t border-border mt-2"
@@ -203,18 +227,15 @@ export function SettingsPanel({
                   <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
                     Notifications
                   </h3>
-                  <button
-                    disabled
-                    className="w-full flex items-center justify-between p-3 rounded-lg border border-border bg-card opacity-60 cursor-not-allowed"
-                  >
+                  <div className="w-full flex items-center justify-between p-3 rounded-lg border border-border bg-card opacity-60">
                     <div className="flex items-center gap-2.5">
                       <Bell className="w-4 h-4 text-muted-foreground" />
                       <div className="text-left">
                         <div className="text-sm font-medium text-foreground">Reminders</div>
-                        <div className="text-[11px] text-muted-foreground">Coming soon</div>
+                        <div className="text-[11px] text-muted-foreground">In development</div>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 </section>
               </div>
             )}
@@ -267,6 +288,86 @@ export function SettingsPanel({
                         </Button>
                       )}
                     </div>
+                  </div>
+                </section>
+
+                {/* Calendar selection */}
+                {isGoogleConnected && calendars.length > 0 && (
+                  <section>
+                    <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+                      Calendars synced
+                    </h3>
+                    <div className="space-y-1">
+                      {calendars.map((cal) => {
+                        const isSelected = selectedCalendarIds.includes(cal.id);
+                        return (
+                          <button
+                            key={cal.id}
+                            onClick={() => onToggleCalendar(cal.id)}
+                            className={cn(
+                              'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-colors text-left',
+                              isSelected
+                                ? 'border-primary/30 bg-primary/5'
+                                : 'border-border bg-card hover:bg-accent/30',
+                            )}
+                          >
+                            <div
+                              className="w-4 h-4 rounded-sm shrink-0"
+                              style={{ backgroundColor: cal.backgroundColor || '#999' }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-medium text-foreground truncate">
+                                {cal.summary}
+                                {cal.primary && (
+                                  <span className="ml-1.5 text-[10px] text-muted-foreground font-normal">(primary)</span>
+                                )}
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
+                                <Check className="w-3 h-3 text-primary-foreground" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">
+                      Selected calendars are imported as busy blocks. Tasks will never overlap events from these calendars.
+                    </p>
+                  </section>
+                )}
+
+                {/* Sync status */}
+                <section>
+                  <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+                    Sync status
+                  </h3>
+                  <div className="p-3 rounded-lg border border-border bg-card space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Status</span>
+                      <span className={cn(
+                        'font-medium',
+                        syncError ? 'text-destructive' : isSyncing ? 'text-primary' : 'text-success',
+                      )}>
+                        {syncError ? 'Error' : isSyncing ? 'Syncing...' : 'Up to date'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Last sync</span>
+                      <span className="font-medium text-foreground">
+                        {lastSyncAt ? formatDistanceToNow(lastSyncAt) + ' ago' : 'Never'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Events synced</span>
+                      <span className="font-medium text-foreground">{syncedEventCount}</span>
+                    </div>
+                    {syncError && (
+                      <div className="mt-2 p-2 rounded-md bg-destructive/5 border border-destructive/20 text-xs text-destructive">
+                        {syncError}
+                      </div>
+                    )}
                   </div>
                 </section>
 

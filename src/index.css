@@ -77,6 +77,14 @@
   --shadow-xl: 0 12px 32px oklch(0.2 0.02 30 / 0.10), 0 4px 8px oklch(0.2 0.02 30 / 0.05);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 .dark {
   --background: oklch(0.15 0.008 50);
   --foreground: oklch(0.93 0.008 80);

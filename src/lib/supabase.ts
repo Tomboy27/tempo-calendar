@@ -7,9 +7,8 @@ let supabase: SupabaseClient | null = null;
 
 if (supabaseUrl && supabaseAnonKey) {
   supabase = createClient(supabaseUrl, supabaseAnonKey);
-  console.log('[Supabase] Client initialized');
 } else {
-  console.error('[Supabase] Missing environment variables. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+  // Supabase not configured — app will show configuration screen
 }
 
 export { supabase };

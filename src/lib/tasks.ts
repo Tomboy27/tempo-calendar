@@ -22,6 +22,7 @@ export interface TaskInput {
   due_date?: string;
   due_time?: string;
   deadline?: string;
+  recurrence_end?: string;
   priority?: TaskPriority;
   frequency?: TaskFrequency;
   preferred_days?: number[];
@@ -50,6 +51,12 @@ export interface TaskInput {
   list_id?: string | null;
   scheduling_profile_id?: string | null;
   sync_to_calendar?: boolean;
+  // Fixed-time scheduling — set directly when the user creates a fixed-time block
+  scheduled_start?: string | null;
+  scheduled_end?: string | null;
+  is_scheduled?: boolean;
+  // Initial status (defaults to 'active' if omitted)
+  status?: TaskStatus;
 }
 
 export type TaskUpdate = Omit<Partial<TaskInput>, 'google_event_id'> & {
@@ -61,8 +68,10 @@ export type TaskUpdate = Omit<Partial<TaskInput>, 'google_event_id'> & {
   // New fields
   completed_at?: string | null;
   status?: TaskStatus;
+  recurrence_end?: string | null;
   last_scheduled_at?: string | null;
   last_missed_at?: string | null;
+  occurrence_overrides?: Record<string, import('./types').OccurrenceOverride> | null;
 };
 
 export async function fetchTasks(): Promise<Task[]> {

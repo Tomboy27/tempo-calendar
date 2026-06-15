@@ -15,9 +15,14 @@ const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 /**
  * Step 2 of the TaskDialog progressive-disclosure layout. Personalization
  * fields: free-form description, comma-separated tags, accent color, and
- * which weekdays to prefer for scheduling.
+ * preferred days for non-repeating tasks.
+ *
+ * Repeating tasks show preferred days in the core flow (TaskDialogBasics),
+ * so they do NOT appear here to avoid duplicate controls.
  */
 export function TaskDialogAdvanced({ form, setForm }: TaskDialogAdvancedProps) {
+  const isRepeating = form.task_type === 'repeating';
+
   const toggleDay = (day: number) => {
     setForm((p) => ({
       ...p,
@@ -69,26 +74,29 @@ export function TaskDialogAdvanced({ form, setForm }: TaskDialogAdvancedProps) {
         </div>
       </div>
 
-      <div>
-        <label className="text-xs font-medium text-muted-foreground mb-2 block">Preferred days</label>
-        <div className="flex gap-1.5">
-          {DAYS.map((day, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => toggleDay(i + 1)}
-              className={`h-9 flex-1 min-w-0 text-xs font-medium rounded-lg transition-colors ${
-                form.preferred_days.includes(i + 1)
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-accent'
-              }`}
-            >
-              <span className="hidden sm:inline">{day}</span>
-              <span className="sm:hidden">{day.charAt(0)}</span>
-            </button>
-          ))}
+      {/* Preferred days only for non-repeating tasks (repeating tasks show this in the core flow) */}
+      {!isRepeating && (
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-2 block">Preferred days</label>
+          <div className="flex gap-1.5">
+            {DAYS.map((day, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => toggleDay(i + 1)}
+                className={`h-9 flex-1 min-w-0 text-xs font-medium rounded-lg transition-colors ${
+                  form.preferred_days.includes(i + 1)
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-accent'
+                }`}
+              >
+                <span className="hidden sm:inline">{day}</span>
+                <span className="sm:hidden">{day.charAt(0)}</span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }

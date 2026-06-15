@@ -39,6 +39,9 @@ export interface CalendarEventType {
     is_missed?: boolean;
     is_flexible?: boolean;
     is_completed?: boolean;
+    is_skipped?: boolean;
+    is_busy_block?: boolean;
+    is_recurring?: boolean;
   };
 }
 

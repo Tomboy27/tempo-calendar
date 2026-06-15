@@ -59,13 +59,11 @@ export function getAccessToken(): string | null {
 export function setAccessToken(token: string | null | undefined): void {
   if (!token) {
     if (accessToken !== null) {
-      console.log('[Google] Access token cleared');
       accessToken = null;
     }
     return;
   }
   if (token !== accessToken) {
-    console.log('[Google] Access token set from external source (Supabase provider_token)');
     accessToken = token;
   }
 }
@@ -88,7 +86,6 @@ export async function fetchCalendarEvents(
   timeMax?: string
 ): Promise<GoogleEvent[]> {
   if (!accessToken) {
-    console.error('[Google] No access token available');
     throw new GoogleAuthError('Not authenticated');
   }
 
@@ -100,7 +97,6 @@ export async function fetchCalendarEvents(
   });
 
   const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`;
-  console.log('[Google] Fetching events from:', url);
 
   try {
     const response = await fetch(url, {
@@ -109,16 +105,14 @@ export async function fetchCalendarEvents(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[Google] Calendar API error:', response.status, errorText);
       throw new GoogleAuthError(`Calendar API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log(`[Google] Fetched ${data.items?.length || 0} events`);
     return data.items || [];
   } catch (error) {
     if (error instanceof GoogleAuthError) throw error;
-    console.error('[Google] Failed to fetch calendar events:', error);
+    // Failed to fetch calendar events — error surfaced via throw
     throw new GoogleAuthError(error instanceof Error ? error.message : 'Failed to fetch calendar events');
   }
 }
@@ -129,14 +123,13 @@ export async function createCalendarEvent(event: {
   start: { dateTime: string; timeZone?: string };
   end: { dateTime: string; timeZone?: string };
   colorId?: string;
-}): Promise<GoogleEvent> {
+}, calendarId: string = 'primary'): Promise<GoogleEvent> {
   if (!accessToken) {
-    console.error('[Google] No access token available');
     throw new GoogleAuthError('Not authenticated');
   }
 
-  const url = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
-  console.log('[Google] Creating event:', event.summary);
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+  // Creating event in Google Calendar
 
   try {
     const response = await fetch(url, {
@@ -147,16 +140,14 @@ export async function createCalendarEvent(event: {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[Google] Create event error:', response.status, errorText);
       throw new GoogleAuthError(`Create event error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('[Google] Event created:', data.id);
     return data;
   } catch (error) {
     if (error instanceof GoogleAuthError) throw error;
-    console.error('[Google] Failed to create event:', error);
+    // Failed to create event — error surfaced via throw
     throw new GoogleAuthError(error instanceof Error ? error.message : 'Failed to create event');
   }
 }
@@ -169,15 +160,15 @@ export async function updateCalendarEvent(
     start?: { dateTime: string; timeZone?: string };
     end?: { dateTime: string; timeZone?: string };
     colorId?: string;
-  }
+  },
+  calendarId: string = 'primary'
 ): Promise<GoogleEvent> {
   if (!accessToken) {
-    console.error('[Google] No access token available');
     throw new GoogleAuthError('Not authenticated');
   }
 
-  const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`;
-  console.log('[Google] Updating event:', eventId);
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`;
+  // Updating event in Google Calendar
 
   try {
     const response = await fetch(url, {
@@ -188,28 +179,25 @@ export async function updateCalendarEvent(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[Google] Update event error:', response.status, errorText);
       throw new GoogleAuthError(`Update event error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('[Google] Event updated:', data.id);
     return data;
   } catch (error) {
     if (error instanceof GoogleAuthError) throw error;
-    console.error('[Google] Failed to update event:', error);
+    // Failed to update event — error surfaced via throw
     throw new GoogleAuthError(error instanceof Error ? error.message : 'Failed to update event');
   }
 }
 
-export async function deleteCalendarEvent(eventId: string): Promise<void> {
+export async function deleteCalendarEvent(eventId: string, calendarId: string = 'primary'): Promise<void> {
   if (!accessToken) {
-    console.error('[Google] No access token available');
     throw new GoogleAuthError('Not authenticated');
   }
 
-  const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`;
-  console.log('[Google] Deleting event:', eventId);
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`;
+  // Deleting event from Google Calendar
 
   try {
     const response = await fetch(url, {
@@ -219,15 +207,49 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[Google] Delete event error:', response.status, errorText);
       throw new GoogleAuthError(`Delete event error: ${response.status} - ${errorText}`);
     }
-
-    console.log('[Google] Event deleted:', eventId);
   } catch (error) {
     if (error instanceof GoogleAuthError) throw error;
-    console.error('[Google] Failed to delete event:', error);
+    // Failed to delete event — error surfaced via throw
     throw new GoogleAuthError(error instanceof Error ? error.message : 'Failed to delete event');
+  }
+}
+
+// ============================================================
+// Calendar List
+// ============================================================
+
+export interface GoogleCalendar {
+  id: string;
+  summary: string;
+  description?: string;
+  primary?: boolean;
+  selected?: boolean;
+  backgroundColor?: string;
+  foregroundColor?: string;
+  accessRole?: string;
+}
+
+export async function fetchCalendarList(): Promise<GoogleCalendar[]> {
+  if (!accessToken) {
+    throw new GoogleAuthError('Not authenticated');
+  }
+
+  const url = 'https://www.googleapis.com/calendar/v3/users/me/calendarList';
+  // Fetching calendar list
+
+  try {
+    const response = await fetch(url, { headers: getAuthHeaders() });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new GoogleAuthError(`Calendar list error: ${response.status} - ${errorText}`);
+    }
+    const data = await response.json();
+    return (data.items || []) as GoogleCalendar[];
+  } catch (error) {
+    if (error instanceof GoogleAuthError) throw error;
+    throw new GoogleAuthError(error instanceof Error ? error.message : 'Failed to fetch calendar list');
   }
 }
 

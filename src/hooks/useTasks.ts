@@ -117,7 +117,7 @@ export function useTasks(): UseTasksReturn {
   }, []);
 
   const recordSyncError = (msg: string) => {
-    console.error('[useTasks] Sync error:', msg);
+    // Sync error recorded for user display
     setSyncErrors((prev) => [...prev, msg]);
   };
 

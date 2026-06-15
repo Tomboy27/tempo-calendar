@@ -15,19 +15,24 @@ export function useSubtasksBatch(taskIds: string[]) {
   // taskIds is unchanged, and produces a "simple" dep expression for the
   // load effect (satisfies react-hooks/use-memo).
   const key = useMemo(() => taskIds.slice().sort().join('|'), [taskIds]);
+  // Mirror taskIds into a ref so the load effect and refresh callback can
+  // read the latest array without listing it in their dependency arrays.
+  const taskIdsRef = useRef(taskIds);
+  useEffect(() => { taskIdsRef.current = taskIds; }, [taskIds]);
 
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (taskIds.length === 0) {
+      const currentTaskIds = taskIdsRef.current;
+      if (currentTaskIds.length === 0) {
         if (mountedRef.current) setByTaskId(new Map());
         return;
       }
       setIsLoading(true);
       try {
-        const map = await fetchSubtasksForTasks(taskIds);
+        const map = await fetchSubtasksForTasks(currentTaskIds);
         if (!cancelled && mountedRef.current) {
           setByTaskId(map);
           setIsLoading(false);
@@ -38,22 +43,13 @@ export function useSubtasksBatch(taskIds: string[]) {
     }
     load();
     return () => { cancelled = true; };
-    // Depend on the stable `key` (useMemo over taskIds) instead of
-    // `taskIds.join('|')` so the effect does not re-fire on every
-    // reordered taskIds array. The exhaustive-deps rule does not see
-    // `key` as derived from `taskIds`, so silence it on the deps line.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   const refresh = useCallback(async () => {
-    if (taskIds.length === 0) return;
-    const map = await fetchSubtasksForTasks(taskIds);
+    const currentTaskIds = taskIdsRef.current;
+    if (currentTaskIds.length === 0) return;
+    const map = await fetchSubtasksForTasks(currentTaskIds);
     if (mountedRef.current) setByTaskId(map);
-    // Depend on the stable `key` (useMemo over taskIds) instead of
-    // `taskIds.join('|')` so this is a "simple expression" per
-    // react-hooks/use-memo. The exhaustive-deps rule is satisfied because
-    // `key` is derived from `taskIds`.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   /** Optimistic toggle used by the list-row chip. */
